@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "288706512713",
+    "firebase_url": "https://mobilesecurity-9876a.firebaseio.com",
+    "project_id": "mobilesecurity-9876a",
+    "storage_bucket": "mobilesecurity-9876a.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288706512713:android:f5bcf773ce8dbcdd",
+        "android_client_info": {
+          "package_name": "com.example.minh.sensors"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "288706512713-1g8edm1odhll54sa47gk3o9e9mtgef8d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.minh.sensors",
+            "certificate_hash": "7acc8f80d1afaa209d33088beafe749ec77d47d9"
+          }
+        },
+        {
+          "client_id": "288706512713-336dv67n8kc8nplqbi29f1m66ote4qq3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8absZ3AQBIzbEN4HyWal3ZVBw2__KcGw"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "288706512713-336dv67n8kc8nplqbi29f1m66ote4qq3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -135,11 +135,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             graph2LastXValue += 1d;
             mSeries2.appendData(new DataPoint(graph2LastXValue, ax), true, 40);
 
-            if (Math.abs(ax) >= 0.2) {
+            if (Math.abs(ax) >= 0.4) {
                 sensorIsRun = false;
                 runButton.setText("Run");
                 Alert mAlert = new Alert(dateFormat.format(new Date()));
                 mAlertDatabaseReference.push().setValue(mAlert);
+                gravity = new float[]{ 0, 0, 0 };
+                linearAcceleration = new float[]{ 0, 0, 0 };
+                input = new float[]{ 0, 0, 0 };
             }
         }
     }

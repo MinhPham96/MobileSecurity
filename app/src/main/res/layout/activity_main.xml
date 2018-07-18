@@ -22,23 +22,19 @@
             android:id="@+id/xAxisTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="X Axis" />
+            android:text="Filtered Data: X Axis" />
 
-        <com.jjoe64.graphview.GraphView
-            android:id="@+id/graph"
-            android:layout_width="match_parent"
-            android:layout_height="200dp" />
 
         <TextView
             android:id="@+id/xAxisFilteredTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="X Axis" />
+            android:text="Threshold: X Axis" />
 
         <com.jjoe64.graphview.GraphView
-            android:id="@+id/graph2"
+            android:id="@+id/graph"
             android:layout_width="match_parent"
-            android:layout_height="200dp" />
+            android:layout_height="match_parent" />
 
     </LinearLayout>
 

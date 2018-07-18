@@ -1,6 +1,6 @@
 package com.example.minh.sensors;
 
-import android.app.Activity;
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -21,7 +21,8 @@ import com.jjoe64.graphview.series.LineGraphSeries;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Random;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -31,17 +32,25 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private DatabaseReference mAlertDatabaseReference;       //an instance for the database listener
     private ChildEventListener mAlertChildEventListener;     //an instance for the child listener in the database
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private Date startTime;
+    private Date stopTime;
 
     private SensorManager sensorManager;
     private Sensor sensor;
-    private TextView xAxis, xAxisFiltered;
+    private TextView dataTextView, thresholdTextView;
     private Button runButton;
-    float ax, ay, az;
+    private float ax, absoluteAx, thresholdAlpha, thresholdBeta;
+    private Queue<Float> dataQueue = new LinkedList<>();
+    private float dataSum = 0.0f;
+    private float dataMean = 0.0f;
+    private static final int dataSize  = 100;
+    private static final float alphaValue = 2;
+    private static final float betaValue = 1;
     private boolean sensorIsRun = false;
 
     //low pass filter
     private float timeConstant = 0.18f;
-    private float alpha = 0.1f;
+    private float filterAlpha = 0.1f;
     private float dt = 0;
     // Timestamps for the low-pass filters
     private float timestamp = System.nanoTime();
@@ -53,13 +62,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float[] input = new float[]{ 0, 0, 0 };
     private int count = 0;
 
+    private boolean state = false;
+    private int eventCounter = 0;
+
     private final Handler mHandler = new Handler();
-    private Runnable mTimer1;
-    private Runnable mTimer2;
-    private LineGraphSeries<DataPoint> mSeries1;
-    private LineGraphSeries<DataPoint> mSeries2;
-    private double graph1LastXValue = 5d;
-    private double graph2LastXValue = 5d;
+    private LineGraphSeries<DataPoint> mDataSeries;
+    private LineGraphSeries<DataPoint> mUpperAlphaThresholdSeries;
+    private LineGraphSeries<DataPoint> mUpperBetaThresholdSeries;
+    private LineGraphSeries<DataPoint> mLowerAlphaThresholdSeries;
+    private LineGraphSeries<DataPoint> mLowerBetaThresholdSeries;
+
+    private double dataLastXValue = 5d;
+    private double thresholdLastXValue = dataLastXValue + dataSize;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,8 +83,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         mFirebaseDatabase = FirebaseDatabase.getInstance();
         mAlertDatabaseReference = mFirebaseDatabase.getReference().child("Alerts");
 
-        xAxis = (TextView) findViewById(R.id.xAxisTextView);
-        xAxisFiltered = (TextView) findViewById(R.id.xAxisFilteredTextView);
+        dataTextView = (TextView) findViewById(R.id.xAxisTextView);
+        thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
         runButton = (Button) findViewById(R.id.runButton);
         runButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -91,31 +105,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         //SENSOR_DELAY_NORMAL: 200000
         sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
 
-        GraphView graph = (GraphView) this.findViewById(R.id.graph);
-        mSeries1 = new LineGraphSeries<>();
-        graph.addSeries(mSeries1);
-        graph.getViewport().setXAxisBoundsManual(true);
-        graph.getViewport().setMinX(0);
-        graph.getViewport().setMaxX(40);
-        //set the Y axis to stay stable
-        graph.getViewport().setYAxisBoundsManual(true);
-        graph.getViewport().setScalableY(false);
-        graph.getViewport().setMaxY(0.5);
-        graph.getViewport().setMinY(-0.5);
 
-        GraphView graph2 = (GraphView) this.findViewById(R.id.graph2);
-        mSeries2 = new LineGraphSeries<>();
-        graph2.addSeries(mSeries2);
+        GraphView graph = (GraphView) this.findViewById(R.id.graph);
+        mDataSeries = new LineGraphSeries<>();
+        mUpperAlphaThresholdSeries = new LineGraphSeries<>();
+        mUpperAlphaThresholdSeries.setColor(Color.RED);
+
+        mLowerAlphaThresholdSeries = new LineGraphSeries<>();
+        mLowerAlphaThresholdSeries.setColor(Color.RED);
+
+        mUpperBetaThresholdSeries = new LineGraphSeries<>();
+        mUpperBetaThresholdSeries.setColor(Color.YELLOW);
+
+        mLowerBetaThresholdSeries = new LineGraphSeries<>();
+        mLowerBetaThresholdSeries.setColor(Color.YELLOW);
+
+        graph.addSeries(mDataSeries);
+        graph.addSeries(mUpperAlphaThresholdSeries);
+        graph.addSeries(mUpperBetaThresholdSeries);
+        graph.addSeries(mLowerAlphaThresholdSeries);
+        graph.addSeries(mLowerBetaThresholdSeries);
         //set the bound for the x axis to manual
         //set the min and max value for x axis
         //this means there will only have 40 values appear on the graph view
-        graph2.getViewport().setXAxisBoundsManual(true);
-        graph2.getViewport().setMinX(0);
-        graph2.getViewport().setMaxX(40);
-        graph2.getViewport().setYAxisBoundsManual(true);
-        graph2.getViewport().setScalableY(false);
-        graph2.getViewport().setMaxY(0.5);
-        graph2.getViewport().setMinY(-0.5);
+        graph.getViewport().setXAxisBoundsManual(true);
+        graph.getViewport().setMinX(0);
+        graph.getViewport().setMaxX(40);
+        graph.getViewport().setYAxisBoundsManual(true);
+        graph.getViewport().setScalableY(false);
+        graph.getViewport().setMaxY(1.5);
+        graph.getViewport().setMinY(-1.5);
     }
 
 
@@ -123,26 +142,31 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public void onSensorChanged(SensorEvent sensorEvent) {
         if(sensorIsRun) {
 
-            ax = sensorEvent.values[0];
-            xAxis.setText(String.valueOf(ax));
-
-            graph1LastXValue += 1d;
-            mSeries1.appendData(new DataPoint(graph1LastXValue, ax), true, 40);
-
             ax = addSamples(sensorEvent.values)[0];
-            xAxisFiltered.setText(String.valueOf(ax));
+            absoluteAx = Math.abs(ax);
+            dataTextView.setText("Filtered Data: " + String.valueOf(ax));
+            dataLastXValue += 1d;
+            mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
-            graph2LastXValue += 1d;
-            mSeries2.appendData(new DataPoint(graph2LastXValue, ax), true, 40);
+            if(dataQueue.size() < dataSize) {
+                dataQueue.offer(absoluteAx);    //add new data to the queue
+                dataSum += absoluteAx;          //add new data to the sum
+            } else {
+                dataSum -= dataQueue.poll();    //remove the oldest data from the sum and the queue
+                dataQueue.offer(absoluteAx);    //add new data to the queue
+                dataSum += absoluteAx;          //add new data to the sum
+                dataMean = dataSum / dataSize;  //calculate the new mean
 
-            if (Math.abs(ax) >= 0.4) {
-                sensorIsRun = false;
-                runButton.setText("Run");
-                Alert mAlert = new Alert(dateFormat.format(new Date()));
-                mAlertDatabaseReference.push().setValue(mAlert);
-                gravity = new float[]{ 0, 0, 0 };
-                linearAcceleration = new float[]{ 0, 0, 0 };
-                input = new float[]{ 0, 0, 0 };
+                //multiply the mean with alphaa to get the threshold
+                thresholdAlpha = dataMean * alphaValue;
+                thresholdBeta = dataMean * betaValue;
+                thresholdTextView.setText("Threshold: " + String.valueOf(thresholdAlpha));
+                thresholdLastXValue += 1d;
+
+                mUpperAlphaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdAlpha), true, 40);
+                mUpperBetaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdBeta), true, 40);
+                mLowerAlphaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdAlpha * -1), true, 40);
+                mLowerBetaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdBeta * -1), true, 40);
             }
         }
     }
@@ -155,33 +179,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     public void onResume() {
         super.onResume();
-//        mTimer1 = new Runnable() {
-//            @Override
-//            public void run() {
-//                mSeries1.resetData(generateData());
-//                mHandler.postDelayed(this, 300);
-//            }
-//        };
-//        mHandler.postDelayed(mTimer1, 300);
-
-//        mTimer2 = new Runnable() {
-//            @Override
-//            public void run() {
-//                graph2LastXValue += 1d;     //extend the x axis
-//                //add new data to the chart
-//                //x value, y value, scroll to the end
-//                //if max data is reached, the old data is deleted to prevent memory leak
-//                mSeries2.appendData(new DataPoint(graph2LastXValue, getRandom()), true, 40);
-//                mHandler.postDelayed(this, 200);
-//            }
-//        };
-//        mHandler.postDelayed(mTimer2, 1000);
     }
 
     @Override
     public void onPause() {
-        mHandler.removeCallbacks(mTimer1);
-        mHandler.removeCallbacks(mTimer2);
         super.onPause();
     }
 
@@ -198,11 +199,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         count++;
 
-        alpha = timeConstant / (timeConstant + dt);
+        filterAlpha = timeConstant / (timeConstant + dt);
 
-        gravity[0] = alpha * gravity[0] + (1 - alpha) * input[0];
-        gravity[1] = alpha * gravity[1] + (1 - alpha) * input[1];
-        gravity[2] = alpha * gravity[2] + (1 - alpha) * input[2];
+        gravity[0] = filterAlpha * gravity[0] + (1 - filterAlpha) * input[0];
+        gravity[1] = filterAlpha * gravity[1] + (1 - filterAlpha) * input[1];
+        gravity[2] = filterAlpha * gravity[2] + (1 - filterAlpha) * input[2];
 
         linearAcceleration[0] = input[0] - gravity[0];
         linearAcceleration[1] = input[1] - gravity[1];

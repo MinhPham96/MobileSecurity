@@ -1,17 +1,37 @@
 package com.example.minh.sensors;
 
 public class Alert {
-    String time;
+    String startTime;
+    String endTime;
+    String timeGap;
 
-    public Alert(String time) {
-        this.time = time;
+    public Alert(String startTime, String endTime, String timeGap) {
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.timeGap = timeGap;
     }
 
-    public String getTime() {
-        return time;
+    public String getStartTime() {
+        return startTime;
     }
 
-    public void setTime(String time) {
-        this.time = time;
+    public void setStartTime(String startTime) {
+        this.startTime = startTime;
+    }
+
+    public String getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(String endTime) {
+        this.endTime = endTime;
+    }
+
+    public String getTimeGap() {
+        return timeGap;
+    }
+
+    public void setTimeGap(String timeGap) {
+        this.timeGap = timeGap;
     }
 }

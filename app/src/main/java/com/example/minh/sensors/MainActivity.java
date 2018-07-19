@@ -32,20 +32,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private DatabaseReference mAlertDatabaseReference;       //an instance for the database listener
     private ChildEventListener mAlertChildEventListener;     //an instance for the child listener in the database
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
-    private Date startTime;
-    private Date stopTime;
+//    private Date startTime;
+//    private Date stopTime;
+    private double startTime, stopTime;
+    private boolean checkTime = false;
 
     private SensorManager sensorManager;
     private Sensor sensor;
-    private TextView dataTextView, thresholdTextView;
+    private TextView dataTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
     private Button runButton;
     private float ax, absoluteAx, thresholdAlpha, thresholdBeta;
     private Queue<Float> dataQueue = new LinkedList<>();
     private float dataSum = 0.0f;
     private float dataMean = 0.0f;
     private static final int dataSize  = 100;
-    private static final float alphaValue = 2;
-    private static final float betaValue = 1;
+    private static final float alphaValue = 4;
+    private static final float betaValue = 2;
+    private static final float minValue = 0.03f;
     private boolean sensorIsRun = false;
 
     //low pass filter
@@ -62,7 +65,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float[] input = new float[]{ 0, 0, 0 };
     private int count = 0;
 
-    private boolean state = false;
+    private boolean upState = false;
+    private boolean upState2 = false;
+    private boolean upState3 = false;
+    private boolean downState = false;
+    private boolean downState2 = false;
+    private boolean downState3 = false;
     private int eventCounter = 0;
 
     private final Handler mHandler = new Handler();
@@ -73,7 +81,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private LineGraphSeries<DataPoint> mLowerBetaThresholdSeries;
 
     private double dataLastXValue = 5d;
-    private double thresholdLastXValue = dataLastXValue + dataSize;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +92,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         dataTextView = (TextView) findViewById(R.id.xAxisTextView);
         thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
+        startTimeTextView = (TextView) findViewById(R.id.startTimeTextView);
+        stopTimeTextView = (TextView) findViewById(R.id.stopTimeTextView);
+
         runButton = (Button) findViewById(R.id.runButton);
         runButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -144,29 +154,96 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             ax = addSamples(sensorEvent.values)[0];
             absoluteAx = Math.abs(ax);
-            dataTextView.setText("Filtered Data: " + String.valueOf(ax));
+//            dataTextView.setText("Filtered Data: " + String.valueOf(ax));
             dataLastXValue += 1d;
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
             if(dataQueue.size() < dataSize) {
                 dataQueue.offer(absoluteAx);    //add new data to the queue
                 dataSum += absoluteAx;          //add new data to the sum
-            } else {
+            }
+            if(dataQueue.size() >= dataSize){
                 dataSum -= dataQueue.poll();    //remove the oldest data from the sum and the queue
                 dataQueue.offer(absoluteAx);    //add new data to the queue
                 dataSum += absoluteAx;          //add new data to the sum
                 dataMean = dataSum / dataSize;  //calculate the new mean
 
-                //multiply the mean with alphaa to get the threshold
-                thresholdAlpha = dataMean * alphaValue;
-                thresholdBeta = dataMean * betaValue;
+                //multiply the mean with alpha to get the threshold
+                thresholdAlpha = (dataMean * alphaValue) + (minValue * 2);
+                thresholdBeta = (dataMean * betaValue) + minValue;
                 thresholdTextView.setText("Threshold: " + String.valueOf(thresholdAlpha));
-                thresholdLastXValue += 1d;
 
-                mUpperAlphaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdAlpha), true, 40);
-                mUpperBetaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdBeta), true, 40);
-                mLowerAlphaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdAlpha * -1), true, 40);
-                mLowerBetaThresholdSeries.appendData(new DataPoint(thresholdLastXValue, thresholdBeta * -1), true, 40);
+                mUpperAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
+                mUpperBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
+                mLowerAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha * -1), true, 40);
+                mLowerBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta * -1), true, 40);
+            }
+
+            if(dataQueue.size() >= dataSize) {
+                if(!upState && !downState && !checkTime) {
+                    if((ax > thresholdBeta) || (ax < (thresholdBeta * -1))) {
+                        startTime = dataLastXValue;
+                        startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
+                        checkTime = true;
+                    }
+                }
+
+                if (upState) {
+                    if(upState3) {
+                        if(ax < minValue) {
+                            eventCounter += 1;
+                            upState = upState2 = upState3 = checkTime = false;
+                            dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                            stopTime = dataLastXValue;
+                            stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
+                        }
+                    }
+
+                    if(upState2) {
+                        if(ax > thresholdBeta) {
+                            upState3 = true;
+                            return;
+                        }
+                    }
+                    if (ax < thresholdBeta) {
+                        upState2 = true;
+                    }
+                    downState = false;
+                    return;
+                }
+
+                if (downState) {
+
+                    if(downState3) {
+                        if (ax > (minValue * -1)) {
+                            eventCounter += 1;
+                            downState = downState2 = downState3 = checkTime = false;
+                            dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                            stopTime = dataLastXValue;
+                            stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
+                        }
+                    }
+
+                    if(downState2) {
+                        if (ax < (thresholdBeta * -1)) {
+                            downState3 = true;
+                            return;
+                        }
+                    }
+
+                    if (ax > (thresholdBeta * -1)) {
+                        downState2 = true;
+                    }
+                    upState = false;
+                    return;
+                }
+
+                if (ax > thresholdAlpha) {
+                    upState = true;
+                } else if (ax < (thresholdAlpha * -1)) {
+                    downState = true;
+                }
+
             }
         }
     }

@@ -20,7 +20,7 @@ import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -35,20 +35,25 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 //    private Date startTime;
 //    private Date stopTime;
     private double startTime, stopTime;
-    private boolean checkTime = false;
+    private boolean checkStartTime = false;
+    private boolean checkStopTime = false;
 
     private SensorManager sensorManager;
     private Sensor sensor;
     private TextView dataTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
     private Button runButton;
     private float ax, absoluteAx, thresholdAlpha, thresholdBeta;
-    private Queue<Float> dataQueue = new LinkedList<>();
-    private float dataSum = 0.0f;
-    private float dataMean = 0.0f;
-    private static final int dataSize  = 100;
-    private static final float alphaValue = 4;
-    private static final float betaValue = 2;
-    private static final float minValue = 0.03f;
+    private Queue<Float> dataThresholdQueue = new LinkedList<>();
+    private Queue<Float> dataTransferQueue = new LinkedList<>();
+    private float dataThresholdSum = 0.0f;
+    private float dataThresholdMean = 0.0f;
+    private float dataTransferSum = 0.0f;
+    private float dataTransferMean = 0.0f;
+    private static final int dataThresholdSize = 100;
+    private static final int dataTransferSize = 10;
+    private static final float alphaValue = 1.5f;
+    private static final float betaValue = 0.5f;
+    private static final float minValue = 0.01f;
     private boolean sensorIsRun = false;
 
     //low pass filter
@@ -65,20 +70,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float[] input = new float[]{ 0, 0, 0 };
     private int count = 0;
 
-    private boolean upState = false;
-    private boolean upState2 = false;
-    private boolean upState3 = false;
-    private boolean downState = false;
-    private boolean downState2 = false;
-    private boolean downState3 = false;
+    private boolean eventTrigger = false;
     private int eventCounter = 0;
 
     private final Handler mHandler = new Handler();
     private LineGraphSeries<DataPoint> mDataSeries;
-    private LineGraphSeries<DataPoint> mUpperAlphaThresholdSeries;
-    private LineGraphSeries<DataPoint> mUpperBetaThresholdSeries;
-    private LineGraphSeries<DataPoint> mLowerAlphaThresholdSeries;
-    private LineGraphSeries<DataPoint> mLowerBetaThresholdSeries;
+    private LineGraphSeries<DataPoint> mDataTransferSeries;
+    private LineGraphSeries<DataPoint> mAlphaThresholdSeries;
+    private LineGraphSeries<DataPoint> mBetaThresholdSeries;
 
     private double dataLastXValue = 5d;
 
@@ -118,23 +117,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         GraphView graph = (GraphView) this.findViewById(R.id.graph);
         mDataSeries = new LineGraphSeries<>();
-        mUpperAlphaThresholdSeries = new LineGraphSeries<>();
-        mUpperAlphaThresholdSeries.setColor(Color.RED);
 
-        mLowerAlphaThresholdSeries = new LineGraphSeries<>();
-        mLowerAlphaThresholdSeries.setColor(Color.RED);
+        mDataTransferSeries = new LineGraphSeries<>();
+        mDataTransferSeries.setColor(Color.GREEN);
 
-        mUpperBetaThresholdSeries = new LineGraphSeries<>();
-        mUpperBetaThresholdSeries.setColor(Color.YELLOW);
+        mAlphaThresholdSeries = new LineGraphSeries<>();
+        mAlphaThresholdSeries.setColor(Color.RED);
 
-        mLowerBetaThresholdSeries = new LineGraphSeries<>();
-        mLowerBetaThresholdSeries.setColor(Color.YELLOW);
+        mBetaThresholdSeries = new LineGraphSeries<>();
+        mBetaThresholdSeries.setColor(Color.YELLOW);
 
         graph.addSeries(mDataSeries);
-        graph.addSeries(mUpperAlphaThresholdSeries);
-        graph.addSeries(mUpperBetaThresholdSeries);
-        graph.addSeries(mLowerAlphaThresholdSeries);
-        graph.addSeries(mLowerBetaThresholdSeries);
+        graph.addSeries(mDataTransferSeries);
+        graph.addSeries(mAlphaThresholdSeries);
+        graph.addSeries(mBetaThresholdSeries);
+
         //set the bound for the x axis to manual
         //set the min and max value for x axis
         //this means there will only have 40 values appear on the graph view
@@ -158,93 +155,63 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             dataLastXValue += 1d;
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
-            if(dataQueue.size() < dataSize) {
-                dataQueue.offer(absoluteAx);    //add new data to the queue
-                dataSum += absoluteAx;          //add new data to the sum
+            if(dataTransferQueue.size() < dataTransferSize) {
+                dataTransferQueue.offer(absoluteAx);
+                dataTransferSum += absoluteAx;
             }
-            if(dataQueue.size() >= dataSize){
-                dataSum -= dataQueue.poll();    //remove the oldest data from the sum and the queue
-                dataQueue.offer(absoluteAx);    //add new data to the queue
-                dataSum += absoluteAx;          //add new data to the sum
-                dataMean = dataSum / dataSize;  //calculate the new mean
+
+            if(dataTransferQueue.size() >= dataTransferSize) {
+                dataTransferSum -= dataTransferQueue.poll();
+                dataTransferQueue.offer(absoluteAx);
+                dataTransferSum += absoluteAx;
+                dataTransferMean = dataTransferSum / dataTransferSize;
+                mDataTransferSeries.appendData(new DataPoint(dataLastXValue, dataTransferMean), true, 40);
+                System.out.println("Data Transfer: " + String.valueOf(dataLastXValue) + new ArrayList(dataTransferQueue));
+            }
+
+            if(dataThresholdQueue.size() < dataThresholdSize) {
+                dataThresholdQueue.offer(absoluteAx);    //add new data to the queue
+                dataThresholdSum += absoluteAx;          //add new data to the sum
+            }
+
+            if(dataThresholdQueue.size() >= dataThresholdSize){
+                dataThresholdSum -= dataThresholdQueue.poll();    //remove the oldest data from the sum and the queue
+                dataThresholdQueue.offer(absoluteAx);    //add new data to the queue
+                dataThresholdSum += absoluteAx;          //add new data to the sum
+                dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
+
 
                 //multiply the mean with alpha to get the threshold
-                thresholdAlpha = (dataMean * alphaValue) + (minValue * 2);
-                thresholdBeta = (dataMean * betaValue) + minValue;
+                thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
+                thresholdBeta = (dataThresholdMean * betaValue) + minValue;
                 thresholdTextView.setText("Threshold: " + String.valueOf(thresholdAlpha));
 
-                mUpperAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
-                mUpperBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
-                mLowerAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha * -1), true, 40);
-                mLowerBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta * -1), true, 40);
+                mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
+                mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
+
+                if(!checkStartTime && !checkStopTime && (dataTransferMean > minValue)) {
+                    checkStartTime = true;
+                    startTime = dataLastXValue;
+                    startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
+                } else if(checkStartTime && eventTrigger && (dataTransferMean < thresholdAlpha)) {
+                    checkStartTime = false;
+                    checkStopTime = true;
+                    stopTime = dataLastXValue;
+                    stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
+                } else if (checkStopTime && (dataTransferMean < minValue)) {
+                    checkStopTime = false;
+                }
+
+                if(!eventTrigger && (dataTransferMean > thresholdBeta)) {
+                    eventCounter += 1;
+                    eventTrigger = true;
+                    dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
+                    eventTrigger = false;
+                }
             }
 
-            if(dataQueue.size() >= dataSize) {
-                if(!upState && !downState && !checkTime) {
-                    if((ax > thresholdBeta) || (ax < (thresholdBeta * -1))) {
-                        startTime = dataLastXValue;
-                        startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
-                        checkTime = true;
-                    }
-                }
 
-                if (upState) {
-                    if(upState3) {
-                        if(ax < minValue) {
-                            eventCounter += 1;
-                            upState = upState2 = upState3 = checkTime = false;
-                            dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
-                            stopTime = dataLastXValue;
-                            stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
-                        }
-                    }
-
-                    if(upState2) {
-                        if(ax > thresholdBeta) {
-                            upState3 = true;
-                            return;
-                        }
-                    }
-                    if (ax < thresholdBeta) {
-                        upState2 = true;
-                    }
-                    downState = false;
-                    return;
-                }
-
-                if (downState) {
-
-                    if(downState3) {
-                        if (ax > (minValue * -1)) {
-                            eventCounter += 1;
-                            downState = downState2 = downState3 = checkTime = false;
-                            dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
-                            stopTime = dataLastXValue;
-                            stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
-                        }
-                    }
-
-                    if(downState2) {
-                        if (ax < (thresholdBeta * -1)) {
-                            downState3 = true;
-                            return;
-                        }
-                    }
-
-                    if (ax > (thresholdBeta * -1)) {
-                        downState2 = true;
-                    }
-                    upState = false;
-                    return;
-                }
-
-                if (ax > thresholdAlpha) {
-                    upState = true;
-                } else if (ax < (thresholdAlpha * -1)) {
-                    downState = true;
-                }
-
-            }
         }
     }
 

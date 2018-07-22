@@ -28,9 +28,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private static final String TAG = "Main Activity";
 
-    private FirebaseDatabase mFirebaseDatabase;         //an instance for Firebase Database
-    private DatabaseReference mAlertDatabaseReference;       //an instance for the database listener
-    private ChildEventListener mAlertChildEventListener;     //an instance for the child listener in the database
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 //    private Date startTime;
 //    private Date stopTime;
@@ -51,7 +48,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float dataTransferMean = 0.0f;
     private static final int dataThresholdSize = 100;
     private static final int dataTransferSize = 10;
-    private static final float alphaValue = 1.5f;
+    private static final float alphaValue = 2.5f;
     private static final float betaValue = 0.5f;
     private static final float minValue = 0.01f;
     private boolean sensorIsRun = false;
@@ -85,9 +82,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        mFirebaseDatabase = FirebaseDatabase.getInstance();
-        mAlertDatabaseReference = mFirebaseDatabase.getReference().child("Alerts");
 
         dataTextView = (TextView) findViewById(R.id.xAxisTextView);
         thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
@@ -151,7 +145,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             ax = addSamples(sensorEvent.values)[0];
             absoluteAx = Math.abs(ax);
-//            dataTextView.setText("Filtered Data: " + String.valueOf(ax));
             dataLastXValue += 1d;
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
@@ -180,7 +173,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 dataThresholdSum += absoluteAx;          //add new data to the sum
                 dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
 
-
                 //multiply the mean with alpha to get the threshold
                 thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
                 thresholdBeta = (dataThresholdMean * betaValue) + minValue;
@@ -189,7 +181,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
 
-                if(!checkStartTime && !checkStopTime && (dataTransferMean > minValue)) {
+                if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
                     checkStartTime = true;
                     startTime = dataLastXValue;
                     startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
@@ -198,11 +190,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     checkStopTime = true;
                     stopTime = dataLastXValue;
                     stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
-                } else if (checkStopTime && (dataTransferMean < minValue)) {
+                } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
                     checkStopTime = false;
+                } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
+                    checkStartTime = false;
+                    eventTrigger = false;
                 }
 
-                if(!eventTrigger && (dataTransferMean > thresholdBeta)) {
+                if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
                     eventCounter += 1;
                     eventTrigger = true;
                     dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
@@ -210,8 +205,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     eventTrigger = false;
                 }
             }
-
-
         }
     }
 
@@ -228,6 +221,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     public void onPause() {
         super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        sensorManager.unregisterListener(this);
     }
 
     public float[] addSamples(float[] acceleration)

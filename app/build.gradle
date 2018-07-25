@@ -29,30 +29,15 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
 
-//    implementation 'com.google.android.gms:play-services-auth:15.0.1'
-//    implementation 'com.google.android.gms:play-services-base:15.0.1'
-//    implementation 'com.google.android.gms:play-services-location:15.0.1'
-//    implementation 'com.google.android.gms:play-services-maps:15.0.1'
-//    implementation 'com.google.android.gms:play-services-places:15.0.1'
-//
-//    implementation 'com.google.firebase:firebase-database:15.0.1'
-//    implementation 'com.google.firebase:firebase-storage:15.0.2'
-//    implementation 'com.google.firebase:firebase-auth:15.0.0'
-//    implementation 'com.firebaseui:firebase-ui:3.1.0'
-
-    implementation 'com.google.android.gms:play-services-auth:11.6.0'
-    implementation 'com.google.android.gms:play-services-base:11.6.0'
-    implementation 'com.google.android.gms:play-services-location:11.6.0'
-    implementation 'com.google.android.gms:play-services-maps:11.6.0'
-    implementation 'com.google.android.gms:play-services-places:11.6.0'
-
-    implementation 'com.google.firebase:firebase-core:11.6.0'
-    implementation 'com.google.firebase:firebase-database:11.6.0'
-    implementation 'com.google.firebase:firebase-storage:11.6.0'
-    implementation 'com.google.firebase:firebase-auth:11.6.0'
-    implementation 'com.firebaseui:firebase-ui:0.6.1'
+    //Firebase - Firestore
+    implementation 'com.google.firebase:firebase-core:16.0.1'
+    implementation 'com.google.firebase:firebase-firestore:17.0.3'
 
     //graph
     implementation 'com.jjoe64:graphview:4.2.2'
+
+    //recycler view
+    implementation 'com.android.support:recyclerview-v7:27.1.1'
+
 }
 apply plugin: 'com.google.gms.google-services'

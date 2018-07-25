@@ -1,37 +1,49 @@
 package com.example.minh.sensors;
 
 public class Alert {
-    String startTime;
-    String endTime;
-    String timeGap;
+    float startTime;
+    float stopTime;
+    float totalTime;
+    String date;
 
-    public Alert(String startTime, String endTime, String timeGap) {
+    public Alert(float startTime, float stopTime, float totalTime, String date) {
         this.startTime = startTime;
-        this.endTime = endTime;
-        this.timeGap = timeGap;
+        this.stopTime = stopTime;
+        this.totalTime = totalTime;
+        this.date = date;
     }
 
-    public String getStartTime() {
+    public Alert() { }
+
+    public float getStartTime() {
         return startTime;
     }
 
-    public void setStartTime(String startTime) {
+    public void setStartTime(float startTime) {
         this.startTime = startTime;
     }
 
-    public String getEndTime() {
-        return endTime;
+    public float getStopTime() {
+        return stopTime;
     }
 
-    public void setEndTime(String endTime) {
-        this.endTime = endTime;
+    public void setStopTime(float stopTime) {
+        this.stopTime = stopTime;
     }
 
-    public String getTimeGap() {
-        return timeGap;
+    public float getTotalTime() {
+        return totalTime;
     }
 
-    public void setTimeGap(String timeGap) {
-        this.timeGap = timeGap;
+    public void setTotalTime(float totalTime) {
+        this.totalTime = totalTime;
+    }
+
+    public String getDate() {
+        return date;
+    }
+
+    public void setDate(String date) {
+        this.date = date;
     }
 }

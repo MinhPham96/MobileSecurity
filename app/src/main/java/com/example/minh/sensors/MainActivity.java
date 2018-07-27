@@ -18,7 +18,10 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
@@ -31,13 +34,17 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Main Activity";
     private static final String alertCollection = "alerts";
+    private static final String historyCollection = "history" ;
 
+    private TextView newAlertTextView;
     private RecyclerView alertRecyclerView;
     private AlertAdapter mAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
     private List<Alert> alertList = new ArrayList<>();
 
     private FirebaseFirestore mFirebaseFirestore;
+    private DocumentReference alertDocRef;
+    private boolean initCheck = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +52,33 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mFirebaseFirestore = FirebaseFirestore.getInstance();
+        alertDocRef = mFirebaseFirestore.collection(alertCollection).document("current_user");
+
+        newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
+
+        //check this document if there is any update in event
+        alertDocRef.addSnapshotListener(new EventListener<DocumentSnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable DocumentSnapshot documentSnapshot,
+                                @javax.annotation.Nullable FirebaseFirestoreException e) {
+                if (e != null) {
+                    Log.w(TAG, "Listen failed.", e);
+                    return;
+                }
+
+                //use the init check to make sure the old event is not counted as new alert
+                if (documentSnapshot != null && documentSnapshot.exists()) {
+                    if(initCheck) {
+                        newAlertTextView.setText(documentSnapshot.toObject(Alert.class).getDate());
+                    }
+                    initCheck = true;
+                    Log.i(TAG, "Current data: " + documentSnapshot.getData());
+                } else {
+                    Log.i(TAG, "Current data: null");
+                    initCheck = true;
+                }
+            }
+        });
 
         //setup recycler view
         alertRecyclerView = (RecyclerView) findViewById(R.id.alertRecyclerView);
@@ -61,9 +95,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        //get all the document in collection "alerts"
+        //get all the document in collection "history"
         //order them by the date
-        mFirebaseFirestore.collection(alertCollection).orderBy("date", Query.Direction.ASCENDING)
+        mFirebaseFirestore.collection(historyCollection).orderBy("date", Query.Direction.ASCENDING)
                 .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
             @Override
             public void onComplete(@NonNull Task<QuerySnapshot> task) {

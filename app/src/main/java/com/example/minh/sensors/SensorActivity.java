@@ -30,7 +30,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private static final String TAG = "Sensor Activity";
     private static final String alertCollection = "alerts";
+    private static final String historyCollection = "history" ;
     private FirebaseFirestore mFirestore;
+    private DocumentReference alertDocRef;
 
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
     //    private Date startTime;
@@ -88,6 +90,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         setContentView(R.layout.activity_sensor);
 
         mFirestore = FirebaseFirestore.getInstance();
+        alertDocRef = mFirestore.collection(alertCollection).document("current_user");
 
         dataTextView = (TextView) findViewById(R.id.xAxisTextView);
         thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
@@ -187,35 +190,51 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
 
+                //if the data transfer pass beta, mark as start time
                 if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
                     checkStartTime = true;
                     startTime = dataLastXValue;
                     startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
+                //if there is an event counter, and the data transfer pass below alpha
+                //mark as stop time, send the alert object to the database
                 } else if(checkStartTime && eventTrigger && (dataTransferMean < thresholdAlpha)) {
                     checkStartTime = false;
                     checkStopTime = true;
                     stopTime = dataLastXValue;
                     stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
                     Alert alert = new Alert(startTime,stopTime, stopTime - startTime, dateFormat.format(new Date()));
-                    mFirestore.collection(alertCollection).add(alert)
-                            .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
-                                @Override
-                                public void onSuccess(DocumentReference documentReference) {
-                                    Log.d(TAG, "Send Alert");
-                                }
-                            });
-
+                    //update this document to alert the user
+                    alertDocRef.set(alert).addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            Log.i(TAG, "Send Alert");
+                        }
+                    });
+                    //store the alert to the history
+                    mFirestore.collection(historyCollection).add(alert)
+                        .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
+                            @Override
+                            public void onSuccess(DocumentReference documentReference) {
+                                Log.i(TAG, "Save Alert");
+                            }
+                        });
+                //if there is an event counted, and the data transfer is below the beta
+                //reset stop time flag
                 } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
                     checkStopTime = false;
+                //if there is no event counted, and the data transfer is below the beta
+                //reset all the flag
                 } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
                     checkStartTime = false;
                     eventTrigger = false;
                 }
 
+                //if the data transfer pass the alpha, mark an event
                 if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
                     eventCounter += 1;
                     eventTrigger = true;
                     dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                //if there is an event, and the data transfer is below alpha, reset the flag
                 } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
                     eventTrigger = false;
                 }

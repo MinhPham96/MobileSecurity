@@ -15,6 +15,7 @@ import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
@@ -34,7 +35,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private FirebaseFirestore mFirestore;
     private DocumentReference alertDocRef;
 
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
     //    private Date startTime;
 //    private Date stopTime;
     private float startTime, stopTime;
@@ -202,7 +202,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     checkStopTime = true;
                     stopTime = dataLastXValue;
                     stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
-                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, dateFormat.format(new Date()));
+                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
                     //update this document to alert the user
                     alertDocRef.set(alert).addOnSuccessListener(new OnSuccessListener<Void>() {
                         @Override

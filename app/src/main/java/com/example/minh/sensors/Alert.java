@@ -1,12 +1,17 @@
 package com.example.minh.sensors;
 
+import com.google.firebase.firestore.ServerTimestamp;
+
+import java.util.Date;
+
 public class Alert {
     float startTime;
     float stopTime;
     float totalTime;
-    String date;
+    @ServerTimestamp
+    Date date;
 
-    public Alert(float startTime, float stopTime, float totalTime, String date) {
+    public Alert(float startTime, float stopTime, float totalTime, Date date) {
         this.startTime = startTime;
         this.stopTime = stopTime;
         this.totalTime = totalTime;
@@ -39,11 +44,11 @@ public class Alert {
         this.totalTime = totalTime;
     }
 
-    public String getDate() {
+    public Date getDate() {
         return date;
     }
 
-    public void setDate(String date) {
+    public void setDate(Date date) {
         this.date = date;
     }
 }

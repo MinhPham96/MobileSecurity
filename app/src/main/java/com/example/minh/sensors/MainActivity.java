@@ -26,6 +26,7 @@ import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Main Activity";
     private static final String alertCollection = "alerts";
     private static final String historyCollection = "history" ;
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
     private TextView newAlertTextView;
     private RecyclerView alertRecyclerView;
@@ -69,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
                 //use the init check to make sure the old event is not counted as new alert
                 if (documentSnapshot != null && documentSnapshot.exists()) {
                     if(initCheck) {
-                        newAlertTextView.setText(documentSnapshot.toObject(Alert.class).getDate());
+                        newAlertTextView.setText(dateFormat.format(documentSnapshot.toObject(Alert.class).getDate()));
                     }
                     initCheck = true;
                     Log.i(TAG, "Current data: " + documentSnapshot.getData());
@@ -104,9 +106,6 @@ public class MainActivity extends AppCompatActivity {
                 if(task.isSuccessful()) {
                     //clear the alertList before adding new item
                     alertList.clear();
-//                    for(QueryDocumentSnapshot document : task.getResult()) {
-//                        alertList.add(document.toObject(Alert.class));
-//                    }
                     //convert the result into a list of alert
                     alertList.addAll(task.getResult().toObjects(Alert.class));
                     mAdapter.notifyDataSetChanged();

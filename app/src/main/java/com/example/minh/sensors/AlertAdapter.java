@@ -7,11 +7,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder> {
     private List<Alert> mDataset = new ArrayList<>();
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
     //custom view holder class to store all the element of the row
     public static class myViewHolder extends RecyclerView.ViewHolder {
@@ -38,7 +40,7 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
     @Override
     public void onBindViewHolder(@NonNull myViewHolder holder, int position) {
         //set the output for the item row
-        holder.alertDateTextView.setText(mDataset.get(position).getDate());
+        holder.alertDateTextView.setText(dateFormat.format(mDataset.get(position).getDate()));
     }
 
     //get the size of the list

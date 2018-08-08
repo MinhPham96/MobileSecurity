@@ -15,14 +15,13 @@ import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -45,7 +44,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private Sensor sensor;
     private TextView dataTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
     private Button runButton;
-    private float ax, absoluteAx, thresholdAlpha, thresholdBeta;
+    private float ax, filteredData, thresholdAlpha, thresholdBeta;
     private Queue<Float> dataThresholdQueue = new LinkedList<>();
     private Queue<Float> dataTransferQueue = new LinkedList<>();
     private float dataThresholdSum = 0.0f;
@@ -152,34 +151,34 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     public void onSensorChanged(SensorEvent sensorEvent) {
         if(sensorIsRun) {
 
-            ax = addSamples(sensorEvent.values)[0];
-            absoluteAx = Math.abs(ax);
+            //since the data is filtered and sorted, the max is the last value
+            filteredData = addSamples(sensorEvent.values)[2];
             dataLastXValue += 1d;
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
             if(dataTransferQueue.size() < dataTransferSize) {
-                dataTransferQueue.offer(absoluteAx);
-                dataTransferSum += absoluteAx;
+                dataTransferQueue.offer(filteredData);
+                dataTransferSum += filteredData;
             }
 
             if(dataTransferQueue.size() >= dataTransferSize) {
                 dataTransferSum -= dataTransferQueue.poll();
-                dataTransferQueue.offer(absoluteAx);
-                dataTransferSum += absoluteAx;
+                dataTransferQueue.offer(filteredData);
+                dataTransferSum += filteredData;
                 dataTransferMean = dataTransferSum / dataTransferSize;
                 mDataTransferSeries.appendData(new DataPoint(dataLastXValue, dataTransferMean), true, 40);
                 System.out.println("Data Transfer: " + String.valueOf(dataLastXValue) + new ArrayList(dataTransferQueue));
             }
 
             if(dataThresholdQueue.size() < dataThresholdSize) {
-                dataThresholdQueue.offer(absoluteAx);    //add new data to the queue
-                dataThresholdSum += absoluteAx;          //add new data to the sum
+                dataThresholdQueue.offer(filteredData);    //add new data to the queue
+                dataThresholdSum += filteredData;          //add new data to the sum
             }
 
             if(dataThresholdQueue.size() >= dataThresholdSize){
                 dataThresholdSum -= dataThresholdQueue.poll();    //remove the oldest data from the sum and the queue
-                dataThresholdQueue.offer(absoluteAx);    //add new data to the queue
-                dataThresholdSum += absoluteAx;          //add new data to the sum
+                dataThresholdQueue.offer(filteredData);    //add new data to the queue
+                dataThresholdSum += filteredData;          //add new data to the sum
                 dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
 
                 //multiply the mean with alpha to get the threshold
@@ -282,9 +281,12 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         gravity[1] = filterAlpha * gravity[1] + (1 - filterAlpha) * input[1];
         gravity[2] = filterAlpha * gravity[2] + (1 - filterAlpha) * input[2];
 
-        linearAcceleration[0] = input[0] - gravity[0];
-        linearAcceleration[1] = input[1] - gravity[1];
-        linearAcceleration[2] = input[2] - gravity[2];
+        //get the linear acceleration convert them to absolute values
+        linearAcceleration[0] = Math.abs(input[0] - gravity[0]);
+        linearAcceleration[1] = Math.abs(input[1] - gravity[1]);
+        linearAcceleration[2] = Math.abs(input[2] - gravity[2]);
+        //sort the arrays to get the max value
+        Arrays.sort(linearAcceleration);
 
         return linearAcceleration;
     }

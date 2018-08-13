@@ -12,6 +12,20 @@
         android:orientation="vertical">
 
         <TextView
+            android:id="@+id/macTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MAC"
+            />
+
+        <Button
+            android:id="@+id/onlineButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="go online"
+            />
+
+        <TextView
             android:id="@+id/newAlertTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

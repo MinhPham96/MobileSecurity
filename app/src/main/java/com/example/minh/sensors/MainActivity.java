@@ -15,6 +15,8 @@ import android.widget.Toast;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -41,24 +43,82 @@ public class MainActivity extends AppCompatActivity {
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
-    private Button onlineButton;
-    private TextView newAlertTextView, macTextView;
+    private Button onlineButton, loginButton;
+    private TextView newAlertTextView, macTextView, usernameTextView;
     private RecyclerView alertRecyclerView;
     private AlertAdapter mAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
     private List<Alert> alertList = new ArrayList<>();
 
     private FirebaseFirestore mFirestore;
+    private FirebaseAuth mFirebaseAuth;
+    private FirebaseAuth.AuthStateListener mAuthListener;
     private DocumentReference alertDocRef;
-    private boolean initCheck = false;
+    private boolean initCheck = false, loginState = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        //setup Firestore and authentication
         mFirestore = FirebaseFirestore.getInstance();
         alertDocRef = mFirestore.collection(alertCollection).document("current_user");
+        mFirebaseAuth = FirebaseAuth.getInstance();
+
+        loginButton = (Button) findViewById(R.id.loginButton);
+        usernameTextView = (TextView) findViewById(R.id.usernameTextView);
+        newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
+
+        //add the authentication listener
+        mAuthListener = new FirebaseAuth.AuthStateListener() {
+            @Override
+            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                FirebaseUser user = firebaseAuth.getCurrentUser();
+                if(user == null) {
+                    loginButton.setText("Login");
+                    loginState = false;
+                    usernameTextView.setText("Username");
+                } else {
+                    loginButton.setText("logout");
+                    loginState = true;
+                    usernameTextView.setText(user.getDisplayName());
+                }
+            }
+        };
+        mFirebaseAuth.addAuthStateListener(mAuthListener);
+
+        //*NOTE*: Currently, the app is running on online mode
+        //check if the Firestore has the current device
+        mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
+                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if(task.isSuccessful()) {
+                    for(DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
+                        //set the path for the device document
+                        macTextView.setText(documentSnapshot.getId());
+                        alertDocRef = mFirestore.collection(deviceCollection).document(documentSnapshot.getId());
+                        //since the listener only works with ths setup
+                        //put the function outside here will not work
+                        setAlertListener();
+                    }
+                }
+            }
+        });
+
+        //configure the login button depends on the login state
+        loginButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if(loginState) {
+                    mFirebaseAuth.signOut();
+                } else {
+                    Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                    startActivity(intent);
+                }
+            }
+        });
 
         macTextView = (TextView) findViewById(R.id.macTextView);
         macTextView.setText(macAddress);
@@ -71,32 +131,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
-
-        //check this document if there is any update in event
-        alertDocRef.addSnapshotListener(new EventListener<DocumentSnapshot>() {
-            @Override
-            public void onEvent(@javax.annotation.Nullable DocumentSnapshot documentSnapshot,
-                                @javax.annotation.Nullable FirebaseFirestoreException e) {
-                if (e != null) {
-                    Log.w(TAG, "Listen failed.", e);
-                    return;
-                }
-
-                //use the init check to make sure the old event is not counted as new alert
-                if (documentSnapshot != null && documentSnapshot.exists()) {
-                    if(initCheck) {
-                        newAlertTextView.setText(dateFormat.format(documentSnapshot.toObject(Alert.class).getDate()));
-                    }
-                    initCheck = true;
-                    Log.i(TAG, "Current data: " + documentSnapshot.getData());
-                } else {
-                    Log.i(TAG, "Current data: null");
-                    initCheck = true;
-                }
-            }
-        });
-
         //setup recycler view
         alertRecyclerView = (RecyclerView) findViewById(R.id.alertRecyclerView);
         alertRecyclerView.setHasFixedSize(true);
@@ -106,19 +140,6 @@ public class MainActivity extends AppCompatActivity {
 
         mAdapter = new AlertAdapter(alertList);
         alertRecyclerView.setAdapter(mAdapter);
-
-        //check if the Firestore has the current device, if yes, display the document ID
-        mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
-                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-            @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                if(task.isSuccessful()) {
-                    for(DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
-                        macTextView.setText(documentSnapshot.getId());
-                    }
-                }
-            }
-        });
 
     }
 
@@ -153,13 +174,39 @@ public class MainActivity extends AppCompatActivity {
                 //if not
                 if(task.getResult().isEmpty()) {
                     //add new device to Firestore
-                    Device device = new Device(macAddress);
+                    Device device = new Device(macAddress, null);
                     mFirestore.collection(deviceCollection).add(device).addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
                         @Override
                         public void onSuccess(DocumentReference documentReference) {
                             Log.i(TAG, "save device");
                         }
                     });
+                }
+            }
+        });
+    }
+
+    public void setAlertListener() {
+        //check this document if there is any update in event
+        alertDocRef.addSnapshotListener(new EventListener<DocumentSnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable DocumentSnapshot documentSnapshot,
+                                @javax.annotation.Nullable FirebaseFirestoreException e) {
+                if (e != null) {
+                    Log.w(TAG, "Listen failed.", e);
+                    return;
+                }
+
+                //use the init check to make sure the old event is not counted as new alert
+                if (documentSnapshot != null && documentSnapshot.exists()) {
+                    if(initCheck) {
+                        newAlertTextView.setText(dateFormat.format(documentSnapshot.toObject(Device.class).getAlert().getDate()));
+                    }
+                    initCheck = true;
+                    Log.i(TAG, "Current data: " + documentSnapshot.getData());
+                } else {
+                    Log.i(TAG, "Current data: null");
+                    initCheck = true;
                 }
             }
         });

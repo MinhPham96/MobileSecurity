@@ -6,6 +6,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Handler;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -13,9 +14,13 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
@@ -31,6 +36,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private static final String TAG = "Sensor Activity";
     private static final String alertCollection = "alerts";
     private static final String historyCollection = "history" ;
+    private static final String deviceCollection = "devices" ;
+    private static final String macAddress = MainActivity.getMacAddr();
+
     private FirebaseFirestore mFirestore;
     private DocumentReference alertDocRef;
 
@@ -90,6 +98,19 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
         mFirestore = FirebaseFirestore.getInstance();
         alertDocRef = mFirestore.collection(alertCollection).document("current_user");
+
+        //check if the Firestore has the current device, if yes, set the path for the document
+        mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
+                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if(task.isSuccessful()) {
+                    for(DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
+                        alertDocRef = mFirestore.collection(deviceCollection).document(documentSnapshot.getId());
+                    }
+                }
+            }
+        });
 
         dataTextView = (TextView) findViewById(R.id.xAxisTextView);
         thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
@@ -167,7 +188,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 dataTransferSum += filteredData;
                 dataTransferMean = dataTransferSum / dataTransferSize;
                 mDataTransferSeries.appendData(new DataPoint(dataLastXValue, dataTransferMean), true, 40);
-                System.out.println("Data Transfer: " + String.valueOf(dataLastXValue) + new ArrayList(dataTransferQueue));
+//                System.out.println("Data Transfer: " + String.valueOf(dataLastXValue) + new ArrayList(dataTransferQueue));
             }
 
             if(dataThresholdQueue.size() < dataThresholdSize) {
@@ -203,7 +224,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
                     Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
                     //update this document to alert the user
-                    alertDocRef.set(alert).addOnSuccessListener(new OnSuccessListener<Void>() {
+                    Device device = new Device(macAddress, alert);
+                    alertDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
                         @Override
                         public void onSuccess(Void aVoid) {
                             Log.i(TAG, "Send Alert");

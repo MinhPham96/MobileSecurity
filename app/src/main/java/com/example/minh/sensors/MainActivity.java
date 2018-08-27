@@ -26,11 +26,17 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.math.BigInteger;
 import java.net.NetworkInterface;
+import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import javax.annotation.Nullable;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -213,16 +219,31 @@ public class MainActivity extends AppCompatActivity {
 
     public void setupUserDeviceListener() {
         mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
-                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                .addSnapshotListener(new EventListener<QuerySnapshot>() {
             @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                if(task.isSuccessful()) {
+            public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
+                if(e != null) {
+                    return;
+                }
+                if(queryDocumentSnapshots != null) {
                     deviceList.clear();
-                    deviceList.addAll(task.getResult().toObjects(Device.class));
+                    deviceList.addAll(queryDocumentSnapshots.toObjects(Device.class));
                     mDeviceAdapter.notifyDataSetChanged();
                 }
+
             }
         });
+//        mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
+//                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+//            @Override
+//            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+//                if(task.isSuccessful()) {
+//                    deviceList.clear();
+//                    deviceList.addAll(task.getResult().toObjects(Device.class));
+//                    mDeviceAdapter.notifyDataSetChanged();
+//                }
+//            }
+//        });
     }
 
     public void storeNewDevice() {
@@ -298,6 +319,26 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    //hashing
+    public static String md5(String s)
+    {
+        MessageDigest digest;
+        try
+        {
+            digest = MessageDigest.getInstance("MD5");
+            digest.update(s.getBytes(Charset.forName("US-ASCII")),0,s.length());
+            byte[] magnitude = digest.digest();
+            BigInteger bi = new BigInteger(1, magnitude);
+            String hash = String.format("%0" + (magnitude.length << 1) + "x", bi);
+            return hash;
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
     public static String getMacAddr() {
         try {
             List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
@@ -317,11 +358,13 @@ public class MainActivity extends AppCompatActivity {
                 if (res1.length() > 0) {
                     res1.deleteCharAt(res1.length() - 1);
                 }
-                return res1.toString();
+                return md5(res1.toString());
             }
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         return "02:00:00:00:00:00";
     }
+
+
 }

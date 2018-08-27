@@ -1,5 +1,10 @@
 package com.example.minh.sensors;
 
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public class Device {
     private String name, macAddress;
     private Alert alert;

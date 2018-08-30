@@ -40,5 +40,8 @@ dependencies {
     //recycler view
     implementation 'com.android.support:recyclerview-v7:27.1.1'
 
+    //JBCrypt
+    implementation group: 'org.mindrot', name: 'jbcrypt', version: '0.3m'
+
 }
 apply plugin: 'com.google.gms.google-services'

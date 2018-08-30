@@ -1,11 +1,13 @@
 package com.example.minh.sensors;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -38,6 +40,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private static final String historyCollection = "history" ;
     private static final String deviceCollection = "devices" ;
     private static final String macAddress = MainActivity.getMacAddr();
+
+    private PowerManager.WakeLock wl;
 
     private FirebaseFirestore mFirestore;
     private DocumentReference alertDocRef;
@@ -95,6 +99,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sensor);
+
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        wl.acquire();
 
         mFirestore = FirebaseFirestore.getInstance();
         alertDocRef = mFirestore.collection(alertCollection).document("current_user");
@@ -281,6 +289,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        wl.release();
         sensorManager.unregisterListener(this);
     }
 

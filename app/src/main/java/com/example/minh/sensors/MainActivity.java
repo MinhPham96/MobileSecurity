@@ -26,9 +26,12 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import org.mindrot.jbcrypt.BCrypt;
+
 import java.math.BigInteger;
 import java.net.NetworkInterface;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -49,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
-    private Button onlineButton, loginButton, addDeviceButton;
+    private Button loginButton, addDeviceButton;
     private TextView newAlertTextView, macTextView, usernameTextView;
     private EditText deviceNameEditText;
     private RecyclerView deviceRecyclerView;
@@ -160,13 +163,7 @@ public class MainActivity extends AppCompatActivity {
         macTextView = (TextView) findViewById(R.id.macTextView);
         macTextView.setText(macAddress);
 
-        onlineButton = (Button) findViewById(R.id.onlineButton);
-        onlineButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                storeNewDevice();
-            }
-        });
+        storeNewDevice();
 
         //register the device to the currently logged in user
         addDeviceButton.setOnClickListener(new View.OnClickListener() {
@@ -339,6 +336,24 @@ public class MainActivity extends AppCompatActivity {
         return "";
     }
 
+    public static String SHA512(String passwordToHash, String salt){
+        String generatedPassword = null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+            md.update(salt.getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = md.digest(passwordToHash.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for(int i=0; i< bytes.length ;i++){
+                sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
+            }
+            generatedPassword = sb.toString();
+        }
+        catch (NoSuchAlgorithmException e){
+            e.printStackTrace();
+        }
+        return generatedPassword;
+    }
+
     public static String getMacAddr() {
         try {
             List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
@@ -358,7 +373,9 @@ public class MainActivity extends AppCompatActivity {
                 if (res1.length() > 0) {
                     res1.deleteCharAt(res1.length() - 1);
                 }
-                return md5(res1.toString());
+//                return BCrypt.hashpw(res1.toString(), BCrypt.gensalt());
+                return SHA512(res1.toString(), "salt");
+//                return res1.toString();
             }
         } catch (Exception ex) {
             ex.printStackTrace();

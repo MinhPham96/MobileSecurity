@@ -46,8 +46,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private FirebaseFirestore mFirestore;
     private DocumentReference alertDocRef;
 
-    //    private Date startTime;
-//    private Date stopTime;
+
     private float startTime, stopTime;
     private boolean checkStartTime = false;
     private boolean checkStopTime = false;
@@ -65,13 +64,15 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private float dataTransferMean = 0.0f;
     private static final int dataThresholdSize = 100;
     private static final int dataTransferSize = 10;
-    private static final float alphaValue = 2.5f;
+    private static final float alphaValue = 1.5f;
     private static final float betaValue = 0.5f;
     private static final float minValue = 0.01f;
     private boolean sensorIsRun = false;
 
     //low pass filter
-    private float timeConstant = 0.18f;
+//    private float timeConstant = 0.18f;
+    //time constant formula: time constant = wanted alpha * period  / (1 - period)
+    private float timeConstant = 0.075f;
     private float filterAlpha = 0.1f;
     private float dt = 0;
     // Timestamps for the low-pass filters
@@ -145,7 +146,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         //SENSOR_DELAY_NORMAL: 200000
         sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
 
-
         GraphView graph = (GraphView) this.findViewById(R.id.graph);
         mDataSeries = new LineGraphSeries<>();
 
@@ -179,10 +179,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
         if(sensorIsRun) {
-
+            dataLastXValue += 1d;
             //since the data is filtered and sorted, the max is the last value
             filteredData = addSamples(sensorEvent.values)[2];
-            dataLastXValue += 1d;
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
             if(dataTransferQueue.size() < dataTransferSize) {
@@ -318,6 +317,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         linearAcceleration[2] = Math.abs(input[2] - gravity[2]);
         //sort the arrays to get the max value
         Arrays.sort(linearAcceleration);
+
+//        linearAcceleration[0] = input[0] - gravity[0];
+//        linearAcceleration[1] = input[1] - gravity[1];
+//        linearAcceleration[2] = input[2] - gravity[2];
 
         return linearAcceleration;
     }

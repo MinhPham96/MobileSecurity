@@ -1,22 +1,27 @@
 package com.example.minh.sensors;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -24,9 +29,8 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
-
-import org.mindrot.jbcrypt.BCrypt;
 
 import java.math.BigInteger;
 import java.net.NetworkInterface;
@@ -37,6 +41,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -54,11 +59,11 @@ public class MainActivity extends AppCompatActivity {
 
     private Button loginButton, addDeviceButton;
     private TextView newAlertTextView, macTextView, usernameTextView;
-    private EditText deviceNameEditText;
     private RecyclerView deviceRecyclerView;
     private DeviceAdapter mDeviceAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
     private List<Device> deviceList = new ArrayList<>();
+    private HashMap<String, String> mac_id_hashmap = new HashMap<>();
 
 //    private RecyclerView alertRecyclerView;
 //    private AlertAdapter mAdapter;
@@ -85,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
 
         loginButton = (Button) findViewById(R.id.loginButton);
         addDeviceButton = (Button) findViewById(R.id.addDeviceButton);
-        deviceNameEditText = (EditText) findViewById(R.id.deviceNameEditText);
         usernameTextView = (TextView) findViewById(R.id.usernameTextView);
         newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
 
@@ -98,18 +102,20 @@ public class MainActivity extends AppCompatActivity {
                     loginButton.setText("Login");
                     loginState = false;
                     usernameTextView.setText("Username");
-                    addDeviceButton.setVisibility(View.GONE);
-                    deviceNameEditText.setVisibility(View.GONE);
-                    addDeviceButton.setClickable(false);
+                    addDeviceButton.setVisibility(View.VISIBLE);
+                    addDeviceButton.setClickable(true);
+                    deviceList.clear();
+                    mDeviceAdapter.notifyDataSetChanged();
+                    deviceRecyclerView.setVisibility(View.GONE);
                 } else {
                     userId = user.getUid();
                     loginButton.setText("logout");
                     loginState = true;
                     usernameTextView.setText(user.getDisplayName());
-                    addDeviceButton.setVisibility(View.VISIBLE);
-                    deviceNameEditText.setVisibility(View.VISIBLE);
-                    addDeviceButton.setClickable(true);
                     setupUserDeviceListener();
+                    addDeviceButton.setVisibility(View.GONE);
+                    addDeviceButton.setClickable(false);
+                    deviceRecyclerView.setVisibility(View.VISIBLE);
                 }
             }
         };
@@ -141,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
         mLayoutManager = new LinearLayoutManager(this);
         deviceRecyclerView.setLayoutManager(mLayoutManager);
 
-        mDeviceAdapter = new DeviceAdapter(deviceList);
+        mDeviceAdapter = new DeviceAdapter(deviceList, mac_id_hashmap);
         deviceRecyclerView.setAdapter(mDeviceAdapter);
 
         //configure the login button depends on the login state
@@ -169,7 +175,7 @@ public class MainActivity extends AppCompatActivity {
         addDeviceButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                addNewDeviceToUser();
+                setupAlertDialog();
             }
         });
 
@@ -224,7 +230,14 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if(queryDocumentSnapshots != null) {
                     deviceList.clear();
-                    deviceList.addAll(queryDocumentSnapshots.toObjects(Device.class));
+                    for(QueryDocumentSnapshot snapshot : queryDocumentSnapshots) {
+                        Device newDevice = snapshot.toObject(Device.class);
+                        if(newDevice.isOwned()) {
+                            deviceList.add(newDevice);
+                            mac_id_hashmap.put(newDevice.getMacAddress(), snapshot.getId());
+                        }
+                    }
+//                    deviceList.addAll(queryDocumentSnapshots.toObjects(Device.class));
                     mDeviceAdapter.notifyDataSetChanged();
                 }
 
@@ -264,25 +277,110 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void addNewDeviceToUser() {
-        final String deviceName = deviceNameEditText.getText().toString();
+    public void addDeviceToUser(final String deviceName, String userEmail, String userPassword) {
+        //user email and password to signin
+        mFirebaseAuth.signInWithEmailAndPassword(userEmail,userPassword).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                if(!task.isSuccessful()) {
+                    Toast.makeText(MainActivity.this, "Wrong user email or password", Toast.LENGTH_SHORT).show();
+                } else {
+                    //get the user ID
+                    final String checkUserID = mFirebaseAuth.getCurrentUser().getUid();
+                    //sign out
+                    mFirebaseAuth.signOut();
+                    //check if the device is already registered to user or not
+                    mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection)
+                            .whereEqualTo("macAddress", macAddress).get()
+                            .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                @Override
+                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                    //if not add new device
+                                    if(task.getResult().isEmpty()) {
+                                        Device device = new Device(deviceName, macAddress, true);
+                                        mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection).add(device);
+                                        Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        //check if the isOwned property is true or not
+                                        //if true, notify user they already has this device
+                                        //else, change to true
+                                        for (DocumentSnapshot snapshot : task.getResult()) {
+                                            Device device = snapshot.toObject(Device.class);
+                                            if(device.isOwned()) {
+                                                Toast.makeText(MainActivity.this, "You already had this device", Toast.LENGTH_SHORT).show();
+                                            } else {
+                                                device.setOwned(true);
+                                                mFirestore.collection(userCollection).document(checkUserID)
+                                                        .collection(deviceCollection).document(snapshot.getId()).set(device);
+                                                Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
+                                            }
+                                        }
+                                    }
+                                }
+                            });
 
-        if(TextUtils.isEmpty(deviceName)) {
-            Toast.makeText(this,"Please enter name",Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
-            .whereEqualTo("macAddress", macAddress).get()
-            .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                @Override
-                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                    if(task.getResult().isEmpty()) {
-                        Device device = new Device(deviceName, macAddress, true);
-                        mFirestore.collection(userCollection).document(userId).collection(deviceCollection).add(device);
-                    }
                 }
-            });
+            }
+        });
+    }
+
+    public void setupAlertDialog() {
+        //create an alert dialog builder
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        //set the title for the dialog
+        builder.setTitle("Add Device to User");
+
+        final LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+
+        // Set up the input
+        final EditText deviceNameAlertEditText = new EditText(this);
+        //set the hint
+        deviceNameAlertEditText.setHint("Device Name");
+        //add the input to the layout
+        layout.addView(deviceNameAlertEditText);
+
+        //repeat for user email & password
+        final EditText emailAlertEditText = new EditText(this);
+        emailAlertEditText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        emailAlertEditText.setHint("User Email");
+        layout.addView(emailAlertEditText);
+
+        final EditText passwordAlertEditText = new EditText(this);
+        // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+        passwordAlertEditText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        passwordAlertEditText.setHint("User Password");
+        layout.addView(passwordAlertEditText);
+
+        builder.setView(layout);
+
+        // Set up the buttons
+        builder.setPositiveButton("Add", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                final String deviceName = deviceNameAlertEditText.getText().toString();
+                final String userEmail = emailAlertEditText.getText().toString();
+                final String userPassword = passwordAlertEditText.getText().toString();
+
+                if(TextUtils.isEmpty(deviceName)) {
+                    Toast.makeText(MainActivity.this,"Please enter device name",Toast.LENGTH_LONG).show();
+                } else if (TextUtils.isEmpty(userEmail)) {
+                    Toast.makeText(MainActivity.this,"Please enter user email",Toast.LENGTH_LONG).show();
+                } else if (TextUtils.isEmpty(userPassword)) {
+                    Toast.makeText(MainActivity.this,"Please enter user password",Toast.LENGTH_LONG).show();
+                } else {
+                    addDeviceToUser(deviceName, userEmail, userPassword);
+                }
+            }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+
+        builder.show();
     }
 
     public void setAlertListener() {

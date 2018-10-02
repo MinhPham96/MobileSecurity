@@ -26,7 +26,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 public class RegisterActivity extends AppCompatActivity {
 
     private static final String TAG = "Register Activity";
-    private static final String userCollection = "users";
+    private String userCollection;
 
     private FirebaseFirestore mFirestore;
     private FirebaseAuth mFirebaseAuth;
@@ -41,6 +41,8 @@ public class RegisterActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
+
+        userCollection = getResources().getString(R.string.fireStoreUserCollection);
 
         mFirestore = FirebaseFirestore.getInstance();
         mFirebaseAuth = FirebaseAuth.getInstance();

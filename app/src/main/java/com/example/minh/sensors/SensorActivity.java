@@ -27,7 +27,6 @@ import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedList;
@@ -36,15 +35,13 @@ import java.util.Queue;
 public class SensorActivity extends AppCompatActivity implements SensorEventListener {
 
     private static final String TAG = "Sensor Activity";
-    private static final String alertCollection = "alerts";
-    private static final String historyCollection = "history" ;
-    private static final String deviceCollection = "devices" ;
+    private String deviceCollection;
     private static final String macAddress = MainActivity.getMacAddr();
 
     private PowerManager.WakeLock wl;
 
     private FirebaseFirestore mFirestore;
-    private DocumentReference alertDocRef;
+    private DocumentReference deviceDocRef;
 
 
     private float startTime, stopTime;
@@ -101,12 +98,15 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sensor);
 
+        deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
+
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         wl.acquire();
 
         mFirestore = FirebaseFirestore.getInstance();
-        alertDocRef = mFirestore.collection(alertCollection).document("current_user");
+        //temporary path for the device doc ref
+        deviceDocRef = mFirestore.collection(deviceCollection).document("current_user");
 
         //check if the Firestore has the current device, if yes, set the path for the document
         mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
@@ -115,7 +115,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             public void onComplete(@NonNull Task<QuerySnapshot> task) {
                 if(task.isSuccessful()) {
                     for(DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
-                        alertDocRef = mFirestore.collection(deviceCollection).document(documentSnapshot.getId());
+                        deviceDocRef = mFirestore.collection(deviceCollection).document(documentSnapshot.getId());
                     }
                 }
             }
@@ -232,20 +232,12 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
                     //update this document to alert the user
                     Device device = new Device(macAddress, alert);
-                    alertDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
+                    deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
                         @Override
                         public void onSuccess(Void aVoid) {
                             Log.i(TAG, "Send Alert");
                         }
                     });
-                    //store the alert to the history
-                    mFirestore.collection(historyCollection).add(alert)
-                        .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
-                            @Override
-                            public void onSuccess(DocumentReference documentReference) {
-                                Log.i(TAG, "Save Alert");
-                            }
-                        });
                 //if there is an event counted, and the data transfer is below the beta
                 //reset stop time flag
                 } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {

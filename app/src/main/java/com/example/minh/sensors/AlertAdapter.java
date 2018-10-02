@@ -34,6 +34,8 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
         // create a new view, get the list item layout
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
         View view = inflater.inflate(R.layout.alert_item, parent, false);
+        RecyclerView.LayoutParams lp = new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        view.setLayoutParams(lp);
         return new myViewHolder(view);
     }
 

@@ -11,6 +11,7 @@ import android.support.v7.widget.RecyclerView;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -29,6 +30,8 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
@@ -50,10 +53,8 @@ import javax.annotation.Nullable;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Main Activity";
-    private static final String alertCollection = "alerts";
-    private static final String historyCollection = "history" ;
-    private static final String deviceCollection = "devices" ;
-    private static final String userCollection = "users";
+    private String deviceCollection;
+    private String userCollection;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
@@ -65,17 +66,11 @@ public class MainActivity extends AppCompatActivity {
     private List<Device> deviceList = new ArrayList<>();
     private HashMap<String, String> mac_id_hashmap = new HashMap<>();
 
-//    private RecyclerView alertRecyclerView;
-//    private AlertAdapter mAdapter;
-//    private RecyclerView.LayoutManager mLayoutManager;
-//    private List<Alert> alertList = new ArrayList<>();
-
     private FirebaseFirestore mFirestore;
     private FirebaseAuth mFirebaseAuth;
     private FirebaseAuth.AuthStateListener mAuthListener;
     private FirebaseUser user;
     private String userId;
-    private DocumentReference alertDocRef;
     private boolean initCheck = false, loginState = false;
 
     @Override
@@ -83,9 +78,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        userCollection = getResources().getString(R.string.fireStoreUserCollection);
+        deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
+
         //setup Firestore and authentication
         mFirestore = FirebaseFirestore.getInstance();
-        alertDocRef = mFirestore.collection(alertCollection).document("current_user");
         mFirebaseAuth = FirebaseAuth.getInstance();
 
         loginButton = (Button) findViewById(R.id.loginButton);
@@ -121,25 +118,6 @@ public class MainActivity extends AppCompatActivity {
         };
         mFirebaseAuth.addAuthStateListener(mAuthListener);
 
-        //*NOTE*: Currently, the app is running on online mode
-        //check if the Firestore has the current device
-//        mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
-//                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-//            @Override
-//            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-//                if(task.isSuccessful()) {
-//                    for(DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
-//                        //set the path for the device document
-//                        macTextView.setText(documentSnapshot.getId());
-//                        alertDocRef = mFirestore.collection(deviceCollection).document(documentSnapshot.getId());
-//                        //since the listener only works with ths setup
-//                        //put the function outside here will not work
-//                        setAlertListener();
-//                    }
-//                }
-//            }
-//        });
-
         //setup recycler view
         deviceRecyclerView = (RecyclerView) findViewById(R.id.deviceRecyclerView);
         deviceRecyclerView.setHasFixedSize(true);
@@ -147,8 +125,9 @@ public class MainActivity extends AppCompatActivity {
         mLayoutManager = new LinearLayoutManager(this);
         deviceRecyclerView.setLayoutManager(mLayoutManager);
 
-        mDeviceAdapter = new DeviceAdapter(deviceList, mac_id_hashmap);
+        mDeviceAdapter = new DeviceAdapter(deviceList, mac_id_hashmap, this);
         deviceRecyclerView.setAdapter(mDeviceAdapter);
+
 
         //configure the login button depends on the login state
         loginButton.setOnClickListener(new View.OnClickListener() {
@@ -179,50 +158,21 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-//        alertRecyclerView = (RecyclerView) findViewById(R.id.alertRecyclerView);
-//        alertRecyclerView.setHasFixedSize(true);
-//
-//        mLayoutManager = new LinearLayoutManager(this);
-//        alertRecyclerView.setLayoutManager(mLayoutManager);
-//
-//        mAdapter = new AlertAdapter(alertList);
-//        alertRecyclerView.setAdapter(mAdapter);
-
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-//        setupHistoryCollectionListener();
         //setup the device list if user is logged in
         if(user != null) {
             setupUserDeviceListener();
         }
     }
 
-//    public void setupAlertHistoryListener() {
-//        //get all the document in collection "history"
-//        //order them by the date
-//        mFirestore.collection(historyCollection).orderBy("date", Query.Direction.ASCENDING)
-//                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-//            @Override
-//            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-//                if(task.isSuccessful()) {
-//                    //clear the alertList before adding new item
-//                    alertList.clear();
-//                    //convert the result into a list of alert
-//                    alertList.addAll(task.getResult().toObjects(Alert.class));
-//                    mAdapter.notifyDataSetChanged();
-//
-//                    Log.i(TAG,"got data");
-//                }
-//            }
-//        });
-//    }
-
     public void setupUserDeviceListener() {
+        //add activity to snapshot listener to automatically remove the listener when the activity stop
         mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
-                .addSnapshotListener(new EventListener<QuerySnapshot>() {
+                .addSnapshotListener(MainActivity.this ,new EventListener<QuerySnapshot>() {
             @Override
             public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
                 if(e != null) {
@@ -232,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
                     deviceList.clear();
                     for(QueryDocumentSnapshot snapshot : queryDocumentSnapshots) {
                         Device newDevice = snapshot.toObject(Device.class);
+                        //check if the current user own the device or not
                         if(newDevice.isOwned()) {
                             deviceList.add(newDevice);
                             mac_id_hashmap.put(newDevice.getMacAddress(), snapshot.getId());
@@ -240,20 +191,18 @@ public class MainActivity extends AppCompatActivity {
 //                    deviceList.addAll(queryDocumentSnapshots.toObjects(Device.class));
                     mDeviceAdapter.notifyDataSetChanged();
                 }
-
             }
         });
-//        mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
-//                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-//            @Override
-//            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-//                if(task.isSuccessful()) {
-//                    deviceList.clear();
-//                    deviceList.addAll(task.getResult().toObjects(Device.class));
-//                    mDeviceAdapter.notifyDataSetChanged();
-//                }
-//            }
-//        });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
     }
 
     public void storeNewDevice() {
@@ -310,6 +259,7 @@ public class MainActivity extends AppCompatActivity {
                                                 Toast.makeText(MainActivity.this, "You already had this device", Toast.LENGTH_SHORT).show();
                                             } else {
                                                 device.setOwned(true);
+                                                device.setName(deviceName);
                                                 mFirestore.collection(userCollection).document(checkUserID)
                                                         .collection(deviceCollection).document(snapshot.getId()).set(device);
                                                 Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
@@ -381,32 +331,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         builder.show();
-    }
-
-    public void setAlertListener() {
-        //check this document if there is any update in event
-        alertDocRef.addSnapshotListener(new EventListener<DocumentSnapshot>() {
-            @Override
-            public void onEvent(@javax.annotation.Nullable DocumentSnapshot documentSnapshot,
-                                @javax.annotation.Nullable FirebaseFirestoreException e) {
-                if (e != null) {
-                    Log.w(TAG, "Listen failed.", e);
-                    return;
-                }
-
-                //use the init check to make sure the old event is not counted as new alert
-                if (documentSnapshot != null && documentSnapshot.exists()) {
-                    if(initCheck) {
-                        newAlertTextView.setText(dateFormat.format(documentSnapshot.toObject(Device.class).getAlert().getDate()));
-                    }
-                    initCheck = true;
-                    Log.i(TAG, "Current data: " + documentSnapshot.getData());
-                } else {
-                    Log.i(TAG, "Current data: null");
-                    initCheck = true;
-                }
-            }
-        });
     }
 
     public void moveToSensor(View view) {

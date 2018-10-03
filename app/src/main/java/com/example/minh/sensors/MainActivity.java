@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private String userCollection;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
-    private PowerManager.WakeLock wl;
+//    private PowerManager.WakeLock wl;
 
     private Button loginButton, addDeviceButton;
     private TextView newAlertTextView, macTextView, usernameTextView;
@@ -83,9 +83,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         //setup wakelock
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-        wl.acquire();
+//        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+//        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+//        wl.acquire();
 
         userCollection = getResources().getString(R.string.fireStoreUserCollection);
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
@@ -111,7 +111,9 @@ public class MainActivity extends AppCompatActivity {
                     addDeviceButton.setVisibility(View.VISIBLE);
                     addDeviceButton.setClickable(true);
                     //remove listener and clear the recycler view
-                    listenerRegistration.remove();
+                    if(listenerRegistration != null){
+                        listenerRegistration.remove();
+                    }
                     mDeviceAdapter.clear();
                     deviceList.clear();
                     mac_id_hashmap.clear();
@@ -217,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         //release wakelock to save power
-        wl.release();
+//        wl.release();
     }
 
     public void storeNewDevice() {

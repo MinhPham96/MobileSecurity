@@ -148,8 +148,11 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                     mDataset.remove(position);
                     notifyItemRemoved(position);
                     notifyItemChanged(position, mDataset.size());
-                    listenerRegistrationList.get(position).remove();
-                    listenerRegistrationList.remove(position);
+                    if(listenerRegistrationList.get(position) != null) {
+                        listenerRegistrationList.get(position).remove();
+                        listenerRegistrationList.remove(position);
+                    }
+
                 }
             }
         });
@@ -171,11 +174,13 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
 
     public void clear() {
         //remove all the listener
-        for(int i = 0; i < listenerRegistrationList.size(); i++) {
-            listenerRegistrationList.get(i).remove();
+        if(!listenerRegistrationList.isEmpty()) {
+            for(int i = 0; i < listenerRegistrationList.size(); i++) {
+                listenerRegistrationList.get(i).remove();
+            }
+            //clear the listener list
+            listenerRegistrationList.clear();
         }
-        //clear the listener list
-        listenerRegistrationList.clear();
         //clear the data list
         final int size = mDataset.size();
         mDataset.clear();

@@ -45,6 +45,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     private String sharedDeviceId;
     private FirebaseFirestore mFirestore;
     private FirebaseAuth mFirebaseAuth;
+    private List<ListenerRegistration> listenerRegistrationList = new ArrayList<>();
     private FirebaseUser user;
     private Context context;
     private SharedPreferences sharedPref;
@@ -100,9 +101,9 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         //get the document that has the same MAC address in the root device collection
         //check if there is any update
         //if yes, alert user
-        //add activity to snapshot listener to automatically remove the listener when the activity stop
-        mFirestore.collection(deviceCollection).whereEqualTo("macAddress", mDataset.get(position).getMacAddress())
-                .addSnapshotListener(activity ,new EventListener<QuerySnapshot>() {
+        //use a listener registration for removal
+        final ListenerRegistration listenerRegistration = mFirestore.collection(deviceCollection).whereEqualTo("macAddress", mDataset.get(position).getMacAddress())
+                .addSnapshotListener(new EventListener<QuerySnapshot>() {
                 @Override
                 public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
                 Log.i(TAG, "get snapshot");
@@ -129,6 +130,9 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                 }
             });
 
+        //add the listener registration to the list
+        listenerRegistrationList.add(listenerRegistration);
+
         holder.deviceNameTextView.setText(mDataset.get(position).getName());
 
         //remove device button
@@ -144,6 +148,8 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                     mDataset.remove(position);
                     notifyItemRemoved(position);
                     notifyItemChanged(position, mDataset.size());
+                    listenerRegistrationList.get(position).remove();
+                    listenerRegistrationList.remove(position);
                 }
             }
         });
@@ -161,5 +167,20 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     @Override
     public int getItemCount() {
         return mDataset.size();
+    }
+
+    public void clear() {
+        //remove all the listener
+        for(int i = 0; i < listenerRegistrationList.size(); i++) {
+            listenerRegistrationList.get(i).remove();
+        }
+        //clear the listener list
+        listenerRegistrationList.clear();
+        //clear the data list
+        final int size = mDataset.size();
+        mDataset.clear();
+        mac_id_hashmap.clear();
+        //notify removal from the adapter
+        notifyItemRangeRemoved(0, size);
     }
 }

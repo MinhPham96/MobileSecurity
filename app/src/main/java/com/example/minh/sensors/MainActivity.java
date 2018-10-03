@@ -1,7 +1,9 @@
 package com.example.minh.sensors;
 
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -57,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private String userCollection;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private PowerManager.WakeLock wl;
 
     private Button loginButton, addDeviceButton;
     private TextView newAlertTextView, macTextView, usernameTextView;
@@ -69,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseFirestore mFirestore;
     private FirebaseAuth mFirebaseAuth;
     private FirebaseAuth.AuthStateListener mAuthListener;
+    private ListenerRegistration listenerRegistration;
     private FirebaseUser user;
     private String userId;
     private boolean initCheck = false, loginState = false;
@@ -77,6 +81,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        //setup wakelock
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        wl.acquire();
 
         userCollection = getResources().getString(R.string.fireStoreUserCollection);
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
@@ -101,9 +110,13 @@ public class MainActivity extends AppCompatActivity {
                     usernameTextView.setText("Username");
                     addDeviceButton.setVisibility(View.VISIBLE);
                     addDeviceButton.setClickable(true);
+                    //remove listener and clear the recycler view
+                    listenerRegistration.remove();
+                    mDeviceAdapter.clear();
                     deviceList.clear();
-                    mDeviceAdapter.notifyDataSetChanged();
-                    deviceRecyclerView.setVisibility(View.GONE);
+                    mac_id_hashmap.clear();
+//                    mDeviceAdapter.notifyDataSetChanged();
+//                    deviceRecyclerView.setVisibility(View.GONE);
                 } else {
                     userId = user.getUid();
                     loginButton.setText("logout");
@@ -112,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
                     setupUserDeviceListener();
                     addDeviceButton.setVisibility(View.GONE);
                     addDeviceButton.setClickable(false);
-                    deviceRecyclerView.setVisibility(View.VISIBLE);
+//                    deviceRecyclerView.setVisibility(View.VISIBLE);
                 }
             }
         };
@@ -163,16 +176,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        //setup the device list if user is logged in
-        if(user != null) {
-            setupUserDeviceListener();
-        }
     }
 
     public void setupUserDeviceListener() {
-        //add activity to snapshot listener to automatically remove the listener when the activity stop
-        mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
-                .addSnapshotListener(MainActivity.this ,new EventListener<QuerySnapshot>() {
+        listenerRegistration = mFirestore.collection(userCollection).document(userId).collection(deviceCollection)
+                .addSnapshotListener(new EventListener<QuerySnapshot>() {
             @Override
             public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
                 if(e != null) {
@@ -203,6 +211,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //release wakelock to save power
+        wl.release();
     }
 
     public void storeNewDevice() {

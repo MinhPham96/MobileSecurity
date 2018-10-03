@@ -100,6 +100,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
 
+        //setup wakelock
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         wl.acquire();
@@ -270,16 +271,25 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     @Override
     public void onResume() {
         super.onResume();
+        Log.i(TAG, "onResume");
     }
 
     @Override
     public void onPause() {
         super.onPause();
+        Log.i(TAG, "onPause");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.i(TAG, "onStop");
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        //release wakelock and unregister sensor to save power
         wl.release();
         sensorManager.unregisterListener(this);
     }

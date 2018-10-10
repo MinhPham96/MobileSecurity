@@ -50,7 +50,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private SensorManager sensorManager;
     private Sensor sensor;
-    private TextView dataTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
+    private TextView counterTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
+    private TextView xAxisTextView, yAxisTextView, zAxisTextView;
     private Button runButton;
     private float ax, filteredData, thresholdAlpha, thresholdBeta;
     private Queue<Float> dataThresholdQueue = new LinkedList<>();
@@ -70,7 +71,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 //    private float timeConstant = 0.18f;
     //time constant formula: time constant = wanted alpha * period  / (1 - period)
     private float timeConstant = 0.075f;
-    private float filterAlpha = 0.1f;
+    private float filterAlpha[] = new float[]{0.1f, 0.1f, 0.1f};
     private float dt = 0;
     // Timestamps for the low-pass filters
     private float timestamp = System.nanoTime();
@@ -122,10 +123,14 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             }
         });
 
-        dataTextView = (TextView) findViewById(R.id.xAxisTextView);
+        counterTextView = (TextView) findViewById(R.id.counterTextView);
         thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
         startTimeTextView = (TextView) findViewById(R.id.startTimeTextView);
         stopTimeTextView = (TextView) findViewById(R.id.stopTimeTextView);
+
+        xAxisTextView = (TextView) findViewById(R.id.xAxisTextView);
+        yAxisTextView = (TextView) findViewById(R.id.yAxisTextView);
+        zAxisTextView = (TextView) findViewById(R.id.zAxisTextView);
 
         runButton = (Button) findViewById(R.id.runButton);
         runButton.setOnClickListener(new View.OnClickListener() {
@@ -179,6 +184,15 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
+
+//        xAxisTextView.setText("x: " + String.valueOf(String.format("%.2f", sensorEvent.values[0])));
+//        yAxisTextView.setText("y: " + String.valueOf(String.format("%.2f", sensorEvent.values[1])));
+//        zAxisTextView.setText("z: " + String.valueOf(String.format("%.2f", sensorEvent.values[2])));
+
+        xAxisTextView.setText("x: " + String.valueOf(filterAlpha[0]));
+        yAxisTextView.setText("y: " + String.valueOf(filterAlpha[1]));
+        zAxisTextView.setText("z: " + String.valueOf(filterAlpha[2]));
+
         if(sensorIsRun) {
             dataLastXValue += 1d;
             //since the data is filtered and sorted, the max is the last value
@@ -200,6 +214,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             }
 
             if(dataThresholdQueue.size() < dataThresholdSize) {
+                //while the threshold is being initialized, get proper alpha value for each axis
+                calculateAlpha(sensorEvent.values);
                 dataThresholdQueue.offer(filteredData);    //add new data to the queue
                 dataThresholdSum += filteredData;          //add new data to the sum
             }
@@ -254,7 +270,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
                     eventCounter += 1;
                     eventTrigger = true;
-                    dataTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                    counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
                 //if there is an event, and the data transfer is below alpha, reset the flag
                 } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
                     eventTrigger = false;
@@ -294,24 +310,36 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         sensorManager.unregisterListener(this);
     }
 
+    public void calculateAlpha(float[] axisData) {
+        for(int i = 0; i < axisData.length; i++) {
+            if(Math.abs(axisData[i]) <= 3) {
+                filterAlpha[i] = 0.7f;
+            } else if (Math.abs(axisData[i]) <= 7) {
+                filterAlpha[i] = 0.5f;
+            } else if (Math.abs(axisData[i]) <= 10) {
+                filterAlpha[i] = 0.3f;
+            }
+        }
+    }
+
     public float[] addSamples(float[] acceleration)
     {
         // Get a local copy of the sensor values
         System.arraycopy(acceleration, 0, this.input, 0, acceleration.length);
+//
+//        timestamp = System.nanoTime();
+//
+//        // Find the sample period (between updates).
+//        // Convert from nanoseconds to seconds
+//        dt = 1 / (count / ((timestamp - timestampOld) / 1000000000.0f));
+//
+//        count++;
+//
+//        filterAlpha = timeConstant / (timeConstant + dt);
 
-        timestamp = System.nanoTime();
-
-        // Find the sample period (between updates).
-        // Convert from nanoseconds to seconds
-        dt = 1 / (count / ((timestamp - timestampOld) / 1000000000.0f));
-
-        count++;
-
-        filterAlpha = timeConstant / (timeConstant + dt);
-
-        gravity[0] = filterAlpha * gravity[0] + (1 - filterAlpha) * input[0];
-        gravity[1] = filterAlpha * gravity[1] + (1 - filterAlpha) * input[1];
-        gravity[2] = filterAlpha * gravity[2] + (1 - filterAlpha) * input[2];
+        gravity[0] = filterAlpha[0] * gravity[0] + (1 - filterAlpha[0]) * input[0];
+        gravity[1] = filterAlpha[1] * gravity[1] + (1 - filterAlpha[1]) * input[1];
+        gravity[2] = filterAlpha[2] * gravity[2] + (1 - filterAlpha[2]) * input[2];
 
         //get the linear acceleration convert them to absolute values
         linearAcceleration[0] = Math.abs(input[0] - gravity[0]);

@@ -1,6 +1,8 @@
 package com.example.minh.sensors;
 
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -9,12 +11,14 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -50,9 +54,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private SensorManager sensorManager;
     private Sensor sensor;
-    private TextView counterTextView, thresholdTextView, startTimeTextView, stopTimeTextView;
+    private TextView counterTextView, peakTextView, startTimeTextView, stopTimeTextView;
     private TextView xAxisTextView, yAxisTextView, zAxisTextView;
-    private Button runButton;
+    private Button runButton, feedbackButton;
     private float ax, filteredData, thresholdAlpha, thresholdBeta;
     private Queue<Float> dataThresholdQueue = new LinkedList<>();
     private Queue<Float> dataTransferQueue = new LinkedList<>();
@@ -66,6 +70,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private static final float betaValue = 0.5f;
     private static final float minValue = 0.01f;
     private boolean sensorIsRun = false;
+    private String[] feedbacks = new String[]{"The alert is correct", "The alert is false", "No alert receive"};
 
     //low pass filter
 //    private float timeConstant = 0.18f;
@@ -85,6 +90,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private boolean eventTrigger = false;
     private int eventCounter = 0;
+    private float peak = 0f;
+    private static final float minimumPeak  = 0.05f;
 
     private final Handler mHandler = new Handler();
     private LineGraphSeries<DataPoint> mDataSeries;
@@ -93,6 +100,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private LineGraphSeries<DataPoint> mBetaThresholdSeries;
 
     private float dataLastXValue = 5f;
+
+    private SharedPreferences sharedPref;
+    private String sharedDeviceType;
+    private int deviceType = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,6 +116,12 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         wl.acquire();
+
+        //get the device type from the shared preference
+        sharedPref = this.getSharedPreferences("com.example.app", Context.MODE_PRIVATE);
+        sharedDeviceType = getResources().getString(R.string.sharedPrefDeviceType);
+        deviceType = sharedPref.getInt(sharedDeviceType, 0);
+//        Toast.makeText(SensorActivity.this, String.valueOf(deviceType), Toast.LENGTH_SHORT).show();
 
         mFirestore = FirebaseFirestore.getInstance();
         //temporary path for the device doc ref
@@ -124,7 +141,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         });
 
         counterTextView = (TextView) findViewById(R.id.counterTextView);
-        thresholdTextView = (TextView) findViewById(R.id.xAxisFilteredTextView);
+        peakTextView = (TextView) findViewById(R.id.peakTextView);
         startTimeTextView = (TextView) findViewById(R.id.startTimeTextView);
         stopTimeTextView = (TextView) findViewById(R.id.stopTimeTextView);
 
@@ -139,6 +156,36 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 sensorIsRun = !sensorIsRun;
                 if(sensorIsRun) runButton.setText("Pause");
                 else runButton.setText("Run");
+            }
+        });
+
+        feedbackButton = (Button) findViewById(R.id.feedbackButton);
+        feedbackButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //create an alert dialog builder
+                final AlertDialog.Builder builder = new AlertDialog.Builder(SensorActivity.this);
+                //set the title for the dialog
+                builder.setTitle("Select Feedback");
+                builder.setSingleChoiceItems(feedbacks, -1, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        //nothing for now
+                    }
+                });
+                builder.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int i) {
+                         dialog.dismiss();
+                    }
+                });
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int i) {
+                        dialog.dismiss();
+                    }
+                });
+                builder.show();
             }
         });
 
@@ -226,10 +273,14 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 dataThresholdSum += filteredData;          //add new data to the sum
                 dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
 
+                if(dataTransferMean > minimumPeak && dataTransferMean > peak) {
+                    peak = dataTransferMean;
+                    peakTextView.setText("Peak: " + String.valueOf(peak));
+                }
+
                 //multiply the mean with alpha to get the threshold
                 thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
                 thresholdBeta = (dataThresholdMean * betaValue) + minValue;
-                thresholdTextView.setText("Threshold: " + String.valueOf(thresholdAlpha));
 
                 mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
@@ -313,11 +364,11 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     public void calculateAlpha(float[] axisData) {
         for(int i = 0; i < axisData.length; i++) {
             if(Math.abs(axisData[i]) <= 3) {
-                filterAlpha[i] = 0.7f;
-            } else if (Math.abs(axisData[i]) <= 7) {
                 filterAlpha[i] = 0.5f;
-            } else if (Math.abs(axisData[i]) <= 10) {
+            } else if (Math.abs(axisData[i]) <= 7) {
                 filterAlpha[i] = 0.3f;
+            } else if (Math.abs(axisData[i]) <= 10) {
+                filterAlpha[i] = 0.1f;
             }
         }
     }

@@ -3,6 +3,7 @@ package com.example.minh.sensors;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
@@ -15,9 +16,12 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -59,10 +63,11 @@ public class MainActivity extends AppCompatActivity {
     private String userCollection;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
-//    private PowerManager.WakeLock wl;
+    private PowerManager.WakeLock wl;
 
     private Button loginButton, addDeviceButton;
-    private TextView newAlertTextView, macTextView, usernameTextView;
+    private Spinner typeSpinner;
+    private TextView newAlertTextView, usernameTextView;
     private RecyclerView deviceRecyclerView;
     private DeviceAdapter mDeviceAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
@@ -77,15 +82,22 @@ public class MainActivity extends AppCompatActivity {
     private String userId;
     private boolean initCheck = false, loginState = false;
 
+    private SharedPreferences sharedPref;
+    private String sharedDeviceType;
+    private int deviceType = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         //setup wakelock
-//        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-//        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-//        wl.acquire();
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        wl.acquire();
+
+        sharedPref = this.getSharedPreferences("com.example.app", Context.MODE_PRIVATE);
+        sharedDeviceType = getResources().getString(R.string.sharedPrefDeviceType);
 
         userCollection = getResources().getString(R.string.fireStoreUserCollection);
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
@@ -160,9 +172,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        macTextView = (TextView) findViewById(R.id.macTextView);
-        macTextView.setText(macAddress);
-
         storeNewDevice();
 
         //register the device to the currently logged in user
@@ -173,6 +182,26 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //spinner
+        typeSpinner = (Spinner) findViewById(R.id.typeSpinner);
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.device_type, android.R.layout.simple_spinner_item);
+        // Specify the layout to use when the list of choices appears
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        // Apply the adapter to the spinner
+        typeSpinner.setAdapter(adapter);
+        typeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int position, long l) {
+                //get the device type from the position
+                deviceType = position;
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {
+
+            }
+        });
     }
 
     @Override
@@ -219,7 +248,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         //release wakelock to save power
-//        wl.release();
+        wl.release();
     }
 
     public void storeNewDevice() {
@@ -351,6 +380,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void moveToSensor(View view) {
+        //save the device type to shared preference
+        sharedPref.edit().putInt(sharedDeviceType,deviceType).apply();
         Intent intent = new Intent(MainActivity.this, SensorActivity.class);
         startActivity(intent);
     }

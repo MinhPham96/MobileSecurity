@@ -2,16 +2,22 @@ package com.example.minh.sensors;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
@@ -53,13 +59,14 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     //custom view holder class to store all the element of the row
     public static class myViewHolder extends RecyclerView.ViewHolder {
         TextView deviceNameTextView, deviceAlertDateTextView;
-        Button removeButton;
+        Button removeButton, editButton;
         public myViewHolder(View itemView) {
             super(itemView);
 
             deviceNameTextView = (TextView) itemView.findViewById(R.id.deviceNameTextView);
             deviceAlertDateTextView = (TextView) itemView.findViewById(R.id.deviceAlertDateTextView);
             removeButton = (Button) itemView.findViewById(R.id.deviceRemoveButton);
+            editButton = (Button) itemView.findViewById(R.id.deviceEditButton);
         }
     }
 
@@ -135,25 +142,92 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
 
         holder.deviceNameTextView.setText(mDataset.get(position).getName());
 
+        //edit device button
+        holder.editButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //create an alert dialog builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                //set the title for the dialog
+                builder.setTitle("Edit Device Name");
+
+                final LinearLayout layout = new LinearLayout(context);
+                layout.setOrientation(LinearLayout.VERTICAL);
+
+                // Set up the input
+                final EditText deviceNameAlertEditText = new EditText(context);
+                //set the hint
+                deviceNameAlertEditText.setHint("Device Name");
+                deviceNameAlertEditText.setText(mDataset.get(position).getName());
+                //add the input to the layout
+                layout.addView(deviceNameAlertEditText);
+                builder.setView(layout);
+
+                builder.setPositiveButton("Save", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        final String deviceName = deviceNameAlertEditText.getText().toString();
+                        if(TextUtils.isEmpty(deviceName)) {
+                            Toast.makeText(context, "Please enter device name", Toast.LENGTH_LONG).show();
+                        } else {
+                            Device device = mDataset.get(position);
+                            device.setName(deviceName);
+                            if(user != null) {
+                                mFirestore.collection(userCollection).document(user.getUid())
+                                        .collection(deviceCollection).document(deviceId).set(device);
+                                holder.deviceNameTextView.setText(deviceName);
+                            }
+                        }
+                    }
+                });
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int i) {
+                        dialog.cancel();
+                    }
+                });
+                builder.show();
+
+            }
+        });
+
         //remove device button
         holder.removeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //get the device ID from the hashmap
-                Device device = mDataset.get(position);
-                device.setOwned(false);
-                if(user != null) {
-                    mFirestore.collection(userCollection).document(user.getUid())
-                            .collection(deviceCollection).document(deviceId).set(device);
-                    mDataset.remove(position);
-                    notifyItemRemoved(position);
-                    notifyItemChanged(position, mDataset.size());
-                    if(listenerRegistrationList.get(position) != null) {
-                        listenerRegistrationList.get(position).remove();
-                        listenerRegistrationList.remove(position);
-                    }
 
-                }
+                //create an alert dialog builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                //set the title for the dialog
+                builder.setTitle("Warning");
+                builder.setMessage("Do you want to remove this device ?");
+
+                builder.setPositiveButton("Remove", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        //get the device ID from the hashmap
+                        Device device = mDataset.get(position);
+                        device.setOwned(false);
+                        if(user != null) {
+                            mFirestore.collection(userCollection).document(user.getUid())
+                                    .collection(deviceCollection).document(deviceId).set(device);
+                            mDataset.remove(position);
+                            notifyItemRemoved(position);
+                            notifyItemChanged(position, mDataset.size());
+                            if(listenerRegistrationList.get(position) != null) {
+                                listenerRegistrationList.get(position).remove();
+                                listenerRegistrationList.remove(position);
+                            }
+                        }
+                    }
+                });
+               builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                   @Override
+                   public void onClick(DialogInterface dialog, int i) {
+                       dialog.cancel();
+                   }
+               });
+               builder.show();
             }
         });
 

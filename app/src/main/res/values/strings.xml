@@ -8,4 +8,12 @@
 
     <!--Shared Preference-->
     <string name="sharedPrefDeviceId">deviceId</string>
+    <string name="sharedPrefDeviceType">deviceType</string>
+
+    <!--spinner-->
+    <string-array name="device_type">
+        <item>Slide Door</item>
+        <item>Swing Door</item>
+        <item>Kart</item>
+    </string-array>
 </resources>

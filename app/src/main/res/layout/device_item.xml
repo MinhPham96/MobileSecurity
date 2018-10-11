@@ -33,11 +33,25 @@
                 android:id="@+id/deviceAlertDateTextView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:lines="1"
+                android:scrollHorizontally="true"
+                android:ellipsize="end"
                 android:textSize="20dp"
                 android:text="Alert date"
                 />
 
         </LinearLayout>
+
+        <Button
+            android:id="@+id/deviceEditButton"
+            android:background="@color/slategray"
+            android:layout_marginEnd="10dp"
+            android:textColor="@color/white"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:text="Edit"
+            />
 
         <Button
             android:id="@+id/deviceRemoveButton"

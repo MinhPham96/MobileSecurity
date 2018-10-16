@@ -39,7 +39,7 @@ import java.util.Queue;
 public class SensorActivity extends AppCompatActivity implements SensorEventListener {
 
     private static final String TAG = "Sensor Activity";
-    private String deviceCollection;
+    private String deviceCollection, useCaseCollection;
     private static final String macAddress = MainActivity.getMacAddr();
 
     private PowerManager.WakeLock wl;
@@ -91,6 +91,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private boolean eventTrigger = false;
     private int eventCounter = 0;
     private float peak = 0f;
+    private float submitPeak = 0f;
     private static final float minimumPeak  = 0.05f;
 
     private final Handler mHandler = new Handler();
@@ -104,6 +105,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private SharedPreferences sharedPref;
     private String sharedDeviceType;
     private int deviceType = 0;
+    private int selectedFeedback = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,9 +113,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         setContentView(R.layout.activity_sensor);
 
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
+        useCaseCollection = getResources().getString(R.string.fireStoreUseCaseCollection);
 
         //setup wakelock
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        final PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         wl.acquire();
 
@@ -163,29 +166,43 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         feedbackButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //create an alert dialog builder
-                final AlertDialog.Builder builder = new AlertDialog.Builder(SensorActivity.this);
-                //set the title for the dialog
-                builder.setTitle("Select Feedback");
-                builder.setSingleChoiceItems(feedbacks, -1, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        //nothing for now
-                    }
-                });
-                builder.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int i) {
-                         dialog.dismiss();
-                    }
-                });
-                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int i) {
-                        dialog.dismiss();
-                    }
-                });
-                builder.show();
+                if(!sensorIsRun) {
+                    //create an alert dialog builder
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(SensorActivity.this);
+                    //set the title for the dialog
+                    builder.setTitle("Select Feedback");
+                    builder.setSingleChoiceItems(feedbacks, 0, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            selectedFeedback = i;
+                        }
+                    });
+                    builder.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int i) {
+                            Data newData = new Data(peak, new Date());
+                            if(selectedFeedback == 1) {
+                                saveFalseFeedback(deviceType, newData);
+                            } else {
+                                saveCorrectFeedback(deviceType, newData);
+                            }
+                            dialog.dismiss();
+                            feedbackButton.setVisibility(View.GONE);
+                        }
+                    });
+                    builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int i) {
+                            dialog.dismiss();
+                        }
+                    });
+                    builder.show();
+                } else {
+                    Toast.makeText(SensorActivity.this,
+                            "Please pause the sensor before sending feedback",
+                            Toast.LENGTH_SHORT).show();
+                }
+
             }
         });
 
@@ -287,6 +304,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
                 //if the data transfer pass beta, mark as start time
                 if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
+                    //reset the peak when there is a reading
+                    peak = 0;
+
                     checkStartTime = true;
                     startTime = dataLastXValue;
                     startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
@@ -309,10 +329,16 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 //if there is an event counted, and the data transfer is below the beta
                 //reset stop time flag
                 } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
+                    //the submit peak will be recorded when the event is done
+                    feedbackButton.setVisibility(View.VISIBLE);
+                    submitPeak = peak;
                     checkStopTime = false;
                 //if there is no event counted, and the data transfer is below the beta
                 //reset all the flag
                 } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
+                    //the submit peak will be recorded when the event is done
+                    feedbackButton.setVisibility(View.VISIBLE);
+                    submitPeak = peak;
                     checkStartTime = false;
                     eventTrigger = false;
                 }
@@ -404,5 +430,41 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 //        linearAcceleration[2] = input[2] - gravity[2];
 
         return linearAcceleration;
+    }
+
+    public void saveCorrectFeedback(int deviceType, Data data) {
+        String correct_data = "correct_data";
+        switch(deviceType) {
+            case 0:
+                mFirestore.collection(useCaseCollection).document("slide_door")
+                .collection(correct_data).add(data);
+                break;
+            case 1:
+                mFirestore.collection(useCaseCollection).document("swing_door")
+                .collection(correct_data).add(data);
+                break;
+            case 2:
+                mFirestore.collection(useCaseCollection).document("kart")
+                .collection(correct_data).add(data);
+                break;
+        }
+    }
+
+    public void saveFalseFeedback(int deviceType, Data data) {
+        String false_data = "false_data";
+        switch(deviceType) {
+            case 0:
+                mFirestore.collection(useCaseCollection).document("slide_door")
+                        .collection(false_data).add(data);
+                break;
+            case 1:
+                mFirestore.collection(useCaseCollection).document("swing_door")
+                        .collection(false_data).add(data);
+                break;
+            case 2:
+                mFirestore.collection(useCaseCollection).document("kart")
+                        .collection(false_data).add(data);
+                break;
+        }
     }
 }

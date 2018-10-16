@@ -5,6 +5,7 @@
     <string name="fireStoreUserCollection">users</string>
     <string name="fireStoreDeviceCollection">devices</string>
     <string name="fireStoreHistoryCollection">history</string>
+    <string name="fireStoreUseCaseCollection">use_cases</string>
 
     <!--Shared Preference-->
     <string name="sharedPrefDeviceId">deviceId</string>

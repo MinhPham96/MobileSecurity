@@ -67,8 +67,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private static final int dataThresholdSize = 100;
     private static final int dataTransferSize = 10;
     private static final float alphaValue = 1.5f;
-    private static final float betaValue = 0.5f;
+    private static final float betaValue = 0.2f;
     private static final float minValue = 0.01f;
+    private double adaptiveThreshold = 0.0f;
     private boolean sensorIsRun = false;
     private String[] feedbacks = new String[]{"The alert is correct", "The alert is false", "No alert receive"};
 
@@ -105,7 +106,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private SharedPreferences sharedPref;
     private String sharedDeviceType;
     private int deviceType = 0;
+    private String[] deviceTypeName;
     private int selectedFeedback = 0;
+    private boolean feedbackAvailable = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -124,12 +127,12 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         sharedPref = this.getSharedPreferences("com.example.app", Context.MODE_PRIVATE);
         sharedDeviceType = getResources().getString(R.string.sharedPrefDeviceType);
         deviceType = sharedPref.getInt(sharedDeviceType, 0);
-//        Toast.makeText(SensorActivity.this, String.valueOf(deviceType), Toast.LENGTH_SHORT).show();
+        deviceTypeName = getResources().getStringArray(R.array.device_type);
+//        Toast.makeText(SensorActivity.this, String.valueOf(deviceTypeName[deviceType]), Toast.LENGTH_SHORT).show();
 
         mFirestore = FirebaseFirestore.getInstance();
         //temporary path for the device doc ref
         deviceDocRef = mFirestore.collection(deviceCollection).document("current_user");
-
         //check if the Firestore has the current device, if yes, set the path for the document
         mFirestore.collection(deviceCollection).whereEqualTo("macAddress", macAddress)
                 .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
@@ -142,6 +145,21 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 }
             }
         });
+
+        //get the adaptive threshold from the database
+        mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType]).get()
+            .addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
+                @Override
+                public void onComplete(@NonNull Task<DocumentSnapshot> task) {
+                    if(task != null) {
+                        //alpha is not needed when using the adaptive threshold
+                        adaptiveThreshold = (double) task.getResult().get("threshold");
+                        //only beta is required
+                        thresholdBeta = ((float)adaptiveThreshold * betaValue) + minValue;
+//                        Toast.makeText(SensorActivity.this, String.valueOf(adaptiveThreshold), Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
 
         counterTextView = (TextView) findViewById(R.id.counterTextView);
         peakTextView = (TextView) findViewById(R.id.peakTextView);
@@ -181,13 +199,19 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                         @Override
                         public void onClick(DialogInterface dialog, int i) {
                             Data newData = new Data(peak, new Date());
+                            //depends on the feedback, the data will be stored in correct or false data collection
                             if(selectedFeedback == 1) {
-                                saveFalseFeedback(deviceType, newData);
+                                mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType])
+                                        .collection("false_data").add(newData);
                             } else {
-                                saveCorrectFeedback(deviceType, newData);
+                                mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType])
+                                        .collection("correct_data").add(newData);
                             }
                             dialog.dismiss();
+                            //the feedback only for latest reading
+                            //so feedback is unavailable after submit
                             feedbackButton.setVisibility(View.GONE);
+                            feedbackAvailable = false;
                         }
                     });
                     builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
@@ -275,44 +299,28 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 dataTransferMean = dataTransferSum / dataTransferSize;
                 mDataTransferSeries.appendData(new DataPoint(dataLastXValue, dataTransferMean), true, 40);
 //                System.out.println("Data Transfer: " + String.valueOf(dataLastXValue) + new ArrayList(dataTransferQueue));
-            }
 
-            if(dataThresholdQueue.size() < dataThresholdSize) {
-                //while the threshold is being initialized, get proper alpha value for each axis
-                calculateAlpha(sensorEvent.values);
-                dataThresholdQueue.offer(filteredData);    //add new data to the queue
-                dataThresholdSum += filteredData;          //add new data to the sum
-            }
-
-            if(dataThresholdQueue.size() >= dataThresholdSize){
-                dataThresholdSum -= dataThresholdQueue.poll();    //remove the oldest data from the sum and the queue
-                dataThresholdQueue.offer(filteredData);    //add new data to the queue
-                dataThresholdSum += filteredData;          //add new data to the sum
-                dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
-
+                //adaptive threshold***********************************************************************
                 if(dataTransferMean > minimumPeak && dataTransferMean > peak) {
                     peak = dataTransferMean;
                     peakTextView.setText("Peak: " + String.valueOf(peak));
                 }
 
-                //multiply the mean with alpha to get the threshold
-                thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
-                thresholdBeta = (dataThresholdMean * betaValue) + minValue;
-
-                mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
+                mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, adaptiveThreshold), true, 40);
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
 
                 //if the data transfer pass beta, mark as start time
                 if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
                     //reset the peak when there is a reading
                     peak = 0;
+                    feedbackAvailable = true;
 
                     checkStartTime = true;
                     startTime = dataLastXValue;
                     startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
                 //if there is an event counter, and the data transfer pass below alpha
                 //mark as stop time, send the alert object to the database
-                } else if(checkStartTime && eventTrigger && (dataTransferMean < thresholdAlpha)) {
+                } else if(checkStartTime && eventTrigger && (dataTransferMean < adaptiveThreshold)) {
                     checkStartTime = false;
                     checkStopTime = true;
                     stopTime = dataLastXValue;
@@ -330,31 +338,110 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 //reset stop time flag
                 } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
                     //the submit peak will be recorded when the event is done
-                    feedbackButton.setVisibility(View.VISIBLE);
+                    if(feedbackAvailable)feedbackButton.setVisibility(View.VISIBLE);
                     submitPeak = peak;
                     checkStopTime = false;
                 //if there is no event counted, and the data transfer is below the beta
                 //reset all the flag
                 } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
                     //the submit peak will be recorded when the event is done
-                    feedbackButton.setVisibility(View.VISIBLE);
+                    if(feedbackAvailable)feedbackButton.setVisibility(View.VISIBLE);
                     submitPeak = peak;
                     checkStartTime = false;
                     eventTrigger = false;
                 }
 
                 //if the data transfer pass the alpha, mark an event
-                if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
+                if(!eventTrigger && (dataTransferMean > adaptiveThreshold)) {
                     eventCounter += 1;
                     eventTrigger = true;
                     counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
                 //if there is an event, and the data transfer is below alpha, reset the flag
-                } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
+                } else if (eventTrigger && (dataTransferMean < adaptiveThreshold)) {
                     eventTrigger = false;
                 }
             }
+
+//            if(dataThresholdQueue.size() < dataThresholdSize) {
+//                //while the threshold is being initialized, get proper alpha value for each axis
+//                calculateAlpha(sensorEvent.values);
+//                dataThresholdQueue.offer(filteredData);    //add new data to the queue
+//                dataThresholdSum += filteredData;          //add new data to the sum
+//            }
+//
+//            if(dataThresholdQueue.size() >= dataThresholdSize){
+//                dataThresholdSum -= dataThresholdQueue.poll();    //remove the oldest data from the sum and the queue
+//                dataThresholdQueue.offer(filteredData);    //add new data to the queue
+//                dataThresholdSum += filteredData;          //add new data to the sum
+//                dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
+//
+//                if(dataTransferMean > minimumPeak && dataTransferMean > peak) {
+//                    peak = dataTransferMean;
+//                    peakTextView.setText("Peak: " + String.valueOf(peak));
+//                }
+//
+//                //multiply the mean with alpha to get the threshold
+//                thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
+//                thresholdBeta = (dataThresholdMean * betaValue) + minValue;
+//
+//                mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
+//                mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
+//
+//                //if the data transfer pass beta, mark as start time
+//                if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
+//                    //reset the peak when there is a reading
+//                    peak = 0;
+//
+//                    checkStartTime = true;
+//                    startTime = dataLastXValue;
+//                    startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
+//                //if there is an event counter, and the data transfer pass below alpha
+//                //mark as stop time, send the alert object to the database
+//                } else if(checkStartTime && eventTrigger && (dataTransferMean < thresholdAlpha)) {
+//                    checkStartTime = false;
+//                    checkStopTime = true;
+//                    stopTime = dataLastXValue;
+//                    stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
+//                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
+//                    //update this document to alert the user
+//                    Device device = new Device(macAddress, alert);
+//                    deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
+//                        @Override
+//                        public void onSuccess(Void aVoid) {
+//                            Log.i(TAG, "Send Alert");
+//                        }
+//                    });
+//                //if there is an event counted, and the data transfer is below the beta
+//                //reset stop time flag
+//                } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
+//                    //the submit peak will be recorded when the event is done
+//                    feedbackButton.setVisibility(View.VISIBLE);
+//                    submitPeak = peak;
+//                    checkStopTime = false;
+//                //if there is no event counted, and the data transfer is below the beta
+//                //reset all the flag
+//                } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
+//                    //the submit peak will be recorded when the event is done
+//                    feedbackButton.setVisibility(View.VISIBLE);
+//                    submitPeak = peak;
+//                    checkStartTime = false;
+//                    eventTrigger = false;
+//                }
+//
+//                //if the data transfer pass the alpha, mark an event
+//                if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
+//                    eventCounter += 1;
+//                    eventTrigger = true;
+//                    counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+//                //if there is an event, and the data transfer is below alpha, reset the flag
+//                } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
+//                    eventTrigger = false;
+//                }
+//            }
         }
     }
+
+
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int i) {
@@ -430,41 +517,5 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 //        linearAcceleration[2] = input[2] - gravity[2];
 
         return linearAcceleration;
-    }
-
-    public void saveCorrectFeedback(int deviceType, Data data) {
-        String correct_data = "correct_data";
-        switch(deviceType) {
-            case 0:
-                mFirestore.collection(useCaseCollection).document("slide_door")
-                .collection(correct_data).add(data);
-                break;
-            case 1:
-                mFirestore.collection(useCaseCollection).document("swing_door")
-                .collection(correct_data).add(data);
-                break;
-            case 2:
-                mFirestore.collection(useCaseCollection).document("kart")
-                .collection(correct_data).add(data);
-                break;
-        }
-    }
-
-    public void saveFalseFeedback(int deviceType, Data data) {
-        String false_data = "false_data";
-        switch(deviceType) {
-            case 0:
-                mFirestore.collection(useCaseCollection).document("slide_door")
-                        .collection(false_data).add(data);
-                break;
-            case 1:
-                mFirestore.collection(useCaseCollection).document("swing_door")
-                        .collection(false_data).add(data);
-                break;
-            case 2:
-                mFirestore.collection(useCaseCollection).document("kart")
-                        .collection(false_data).add(data);
-                break;
-        }
     }
 }

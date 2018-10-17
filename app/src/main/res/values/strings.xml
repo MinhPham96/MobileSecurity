@@ -13,8 +13,8 @@
 
     <!--spinner-->
     <string-array name="device_type">
-        <item>Slide Door</item>
-        <item>Swing Door</item>
-        <item>Kart</item>
+        <item>slide_door</item>
+        <item>swing_door</item>
+        <item>kart</item>
     </string-array>
 </resources>

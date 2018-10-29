@@ -287,11 +287,15 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             filteredData = addSamples(sensorEvent.values)[2];
             mDataSeries.appendData(new DataPoint(dataLastXValue, ax), true, 40);
 
+            //getting the first 10 samples
             if(dataTransferQueue.size() < dataTransferSize) {
                 dataTransferQueue.offer(filteredData);
                 dataTransferSum += filteredData;
+                //calculate the alpha for each axis
+                calculateAlpha(sensorEvent.values);
             }
 
+            //from the 11th sample and forward, keep the latest 10
             if(dataTransferQueue.size() >= dataTransferSize) {
                 dataTransferSum -= dataTransferQueue.poll();
                 dataTransferQueue.offer(filteredData);

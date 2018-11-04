@@ -17,4 +17,8 @@
         <item>swing_door</item>
         <item>kart</item>
     </string-array>
+
+    <!--notification-->
+    <string name="channel_name">New Alert</string>
+    <string name="channel_description">A motion is detected</string>
 </resources>

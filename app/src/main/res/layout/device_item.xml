@@ -8,61 +8,66 @@
     <!--Edit everything in this linear layout-->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:orientation="horizontal"
+        android:layout_height="110dp"
+        android:orientation="vertical"
         android:layout_margin="10dp"
         android:background="@color/lightgray"
         >
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
+        <TextView
+            android:id="@+id/deviceNameTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:orientation="vertical">
+            android:textSize="20dp"
+            android:text="Name"
+            />
 
-            <TextView
-                android:id="@+id/deviceNameTextView"
-                android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/deviceAlertDateTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:lines="1"
+            android:scrollHorizontally="true"
+            android:ellipsize="end"
+            android:textSize="20dp"
+            android:text="Alert date"
+            />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/silver"
+            android:gravity="end"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/deviceEditButton"
+                android:background="@color/slategray"
+                android:layout_marginEnd="10dp"
+                android:textColor="@color/white"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="20dp"
-                android:text="Name"
+                android:layout_gravity="center_vertical"
+                android:text="Edit"
                 />
 
-            <TextView
-                android:id="@+id/deviceAlertDateTextView"
-                android:layout_width="match_parent"
+            <Button
+                android:id="@+id/deviceRemoveButton"
+                android:background="@color/slategray"
+                android:textColor="@color/white"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:lines="1"
-                android:scrollHorizontally="true"
-                android:ellipsize="end"
-                android:textSize="20dp"
-                android:text="Alert date"
+                android:layout_gravity="center_vertical"
+                android:text="Remove"
                 />
 
         </LinearLayout>
 
-        <Button
-            android:id="@+id/deviceEditButton"
-            android:background="@color/slategray"
-            android:layout_marginEnd="10dp"
-            android:textColor="@color/white"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="Edit"
-            />
 
-        <Button
-            android:id="@+id/deviceRemoveButton"
-            android:background="@color/slategray"
-            android:layout_marginEnd="10dp"
-            android:textColor="@color/white"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="Remove"
-            />
     </LinearLayout>
 
 

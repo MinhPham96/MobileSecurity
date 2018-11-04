@@ -13,7 +13,7 @@ import java.util.List;
 
 public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder> {
     private List<Alert> mDataset = new ArrayList<>();
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
 
     //custom view holder class to store all the element of the row
     public static class myViewHolder extends RecyclerView.ViewHolder {

@@ -1,11 +1,13 @@
 package com.example.minh.sensors;
 
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.support.annotation.NonNull;
+import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
@@ -34,6 +36,7 @@ import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
@@ -42,7 +45,7 @@ import javax.annotation.Nullable;
 public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHolder>  {
     private List<Device> mDataset = new ArrayList<>();
     private HashMap<String, String> mac_id_hashmap;
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
     private static final String TAG = "Main Activity";
 
     private String deviceCollection;
@@ -55,6 +58,8 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     private FirebaseUser user;
     private Context context;
     private SharedPreferences sharedPref;
+
+    private static final String CHANNEL_ID  = "MS1211";
 
     //custom view holder class to store all the element of the row
     public static class myViewHolder extends RecyclerView.ViewHolder {
@@ -120,6 +125,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                 for(DocumentChange documentChange: queryDocumentSnapshots.getDocumentChanges()) {
                     switch (documentChange.getType()) {
                         case MODIFIED:
+                            addNotification(mDataset.get(position).getName());
                             for(DocumentSnapshot documentSnapshot: queryDocumentSnapshots.getDocuments()) {
                                 //get the alert from the snapshot
                                 Alert alert = documentSnapshot.toObject(Device.class).getAlert();
@@ -261,5 +267,20 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         mac_id_hashmap.clear();
         //notify removal from the adapter
         notifyItemRangeRemoved(0, size);
+    }
+
+    private void addNotification(String deviceName) {
+        //setup notification
+        NotificationCompat.Builder builder =
+        new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.alert)
+                .setContentTitle("New Alert")
+                .setContentText("' " + deviceName + " ' has detected a motion")
+                .setAutoCancel(true);
+
+
+        // Add as notification
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        manager.notify((int) ((new Date().getTime() / 1000L) % Integer.MAX_VALUE), builder.build());
     }
 }

@@ -479,7 +479,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     }
 
     public void calculateAlpha(float[] axisData) {
+        //scan through the gravity reach of each axis
         for(int i = 0; i < axisData.length; i++) {
+            //determine the alpha for each axis
             if(Math.abs(axisData[i]) <= 3) {
                 filterAlpha[i] = 0.5f;
             } else if (Math.abs(axisData[i]) <= 7) {

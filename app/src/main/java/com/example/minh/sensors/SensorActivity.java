@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
@@ -17,15 +19,15 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.Environment;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -49,6 +51,9 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
@@ -57,15 +62,15 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Queue;
-import java.util.UUID;
 
 public class SensorActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -77,11 +82,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private FirebaseFirestore mFirestore;
     private DocumentReference deviceDocRef;
-
-
-    private float startTime, stopTime;
-    private boolean checkStartTime = false;
-    private boolean checkStopTime = false;
+    private FirebaseStorage mFirebaseStorage;
+    private StorageReference mPhotoStorageReferece;
 
     private SensorManager sensorManager;
     private Sensor sensor;
@@ -162,7 +164,11 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     //Save to FILE
     private File file;
+    private Uri photoURI;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
+    private static final int imageQuality = 100;
+    private static final int imageWidth = 320;
+    private static final int imageHeight = 240;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
 
@@ -235,6 +241,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     }
                 }
             });
+
+        //cloud storage
+        mFirebaseStorage = FirebaseStorage.getInstance();
+        mPhotoStorageReferece = mFirebaseStorage.getReference().child("alert");
 
         counterTextView = (TextView) findViewById(R.id.counterTextView);
         peakTextView = (TextView) findViewById(R.id.peakTextView);
@@ -395,99 +405,23 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
 
                 //if the data transfer pass beta, mark as start time
-                if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
+                if(dataTransferMean > thresholdBeta) {
                     //reset the peak when there is a reading
                     peak = 0;
                     feedbackAvailable = true;
 
-                    checkStartTime = true;
-                    startTime = dataLastXValue;
-                    startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
-                //if there is an event counter, and the data transfer pass below alpha
-                //mark as stop time, send the alert object to the database
-                } else if(checkStartTime && eventTrigger && (dataTransferMean < adaptiveThreshold)) {
-                    takePicture();
-                    checkStartTime = false;
-                    checkStopTime = true;
-                    stopTime = dataLastXValue;
-                    stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
-                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
-                    //update this document to alert the user
-                    Device device = new Device(macAddress, alert);
-                    deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
-                        @Override
-                        public void onSuccess(Void aVoid) {
-                            Log.i(TAG, "Send Alert");
-                        }
-                    });
-                //if there is an event counted, and the data transfer is below the beta
-                //reset stop time flag
-                } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
+                } else if (dataTransferMean < thresholdBeta) {
                     //the submit peak will be recorded when the event is done
                     if(feedbackAvailable)feedbackButton.setVisibility(View.VISIBLE);
                     submitPeak = peak;
-                    checkStopTime = false;
-                //if there is no event counted, and the data transfer is below the beta
-                //reset all the flag
-                } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
-                    //the submit peak will be recorded when the event is done
-                    if(feedbackAvailable)feedbackButton.setVisibility(View.VISIBLE);
-                    submitPeak = peak;
-                    checkStartTime = false;
                     eventTrigger = false;
                 }
 
                 //if the data transfer pass the alpha, mark an event
                 if(!eventTrigger && (dataTransferMean > adaptiveThreshold)) {
-                    eventCounter += 1;
                     eventTrigger = true;
-                    counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
-                //if there is an event, and the data transfer is below alpha, reset the flag
-                } else if (eventTrigger && (dataTransferMean < adaptiveThreshold)) {
-                    eventTrigger = false;
-                }
-            }
-
-//            if(dataThresholdQueue.size() < dataThresholdSize) {
-//                //while the threshold is being initialized, get proper alpha value for each axis
-//                calculateAlpha(sensorEvent.values);
-//                dataThresholdQueue.offer(filteredData);    //add new data to the queue
-//                dataThresholdSum += filteredData;          //add new data to the sum
-//            }
-//
-//            if(dataThresholdQueue.size() >= dataThresholdSize){
-//                dataThresholdSum -= dataThresholdQueue.poll();    //remove the oldest data from the sum and the queue
-//                dataThresholdQueue.offer(filteredData);    //add new data to the queue
-//                dataThresholdSum += filteredData;          //add new data to the sum
-//                dataThresholdMean = dataThresholdSum / dataThresholdSize;  //calculate the new mean
-//
-//                if(dataTransferMean > minimumPeak && dataTransferMean > peak) {
-//                    peak = dataTransferMean;
-//                    peakTextView.setText("Peak: " + String.valueOf(peak));
-//                }
-//
-//                //multiply the mean with alpha to get the threshold
-//                thresholdAlpha = (dataThresholdMean * alphaValue)+ minValue;
-//                thresholdBeta = (dataThresholdMean * betaValue) + minValue;
-//
-//                mAlphaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdAlpha), true, 40);
-//                mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
-//
-//                //if the data transfer pass beta, mark as start time
-//                if(!checkStartTime && !checkStopTime && (dataTransferMean > thresholdBeta)) {
-//                    //reset the peak when there is a reading
-//                    peak = 0;
-//
-//                    checkStartTime = true;
-//                    startTime = dataLastXValue;
-//                    startTimeTextView.setText("Start Time: " + String.valueOf(startTime));
-//                //if there is an event counter, and the data transfer pass below alpha
-//                //mark as stop time, send the alert object to the database
-//                } else if(checkStartTime && eventTrigger && (dataTransferMean < thresholdAlpha)) {
-//                    checkStartTime = false;
-//                    checkStopTime = true;
-//                    stopTime = dataLastXValue;
-//                    stopTimeTextView.setText("Stop Time: " + String.valueOf(stopTime));
+                    takePicture();
+                    //move to takePicture()
 //                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
 //                    //update this document to alert the user
 //                    Device device = new Device(macAddress, alert);
@@ -497,33 +431,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 //                            Log.i(TAG, "Send Alert");
 //                        }
 //                    });
-//                //if there is an event counted, and the data transfer is below the beta
-//                //reset stop time flag
-//                } else if (checkStopTime && (dataTransferMean < thresholdBeta)) {
-//                    //the submit peak will be recorded when the event is done
-//                    feedbackButton.setVisibility(View.VISIBLE);
-//                    submitPeak = peak;
-//                    checkStopTime = false;
-//                //if there is no event counted, and the data transfer is below the beta
-//                //reset all the flag
-//                } else if (!checkStopTime && (dataTransferMean < thresholdBeta)) {
-//                    //the submit peak will be recorded when the event is done
-//                    feedbackButton.setVisibility(View.VISIBLE);
-//                    submitPeak = peak;
-//                    checkStartTime = false;
-//                    eventTrigger = false;
-//                }
-//
-//                //if the data transfer pass the alpha, mark an event
-//                if(!eventTrigger && (dataTransferMean > thresholdAlpha)) {
-//                    eventCounter += 1;
-//                    eventTrigger = true;
-//                    counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
-//                //if there is an event, and the data transfer is below alpha, reset the flag
-//                } else if (eventTrigger && (dataTransferMean < thresholdAlpha)) {
-//                    eventTrigger = false;
-//                }
-//            }
+                    eventCounter += 1;
+                    counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
+                }
+            }
         }
     }
 
@@ -552,7 +463,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         super.onPause();
         Log.i(TAG, "onPause");
         stopBackgroundThread();
-        cameraCaptureSessions.close();
     }
 
     @Override
@@ -587,16 +497,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     {
         // Get a local copy of the sensor values
         System.arraycopy(acceleration, 0, this.input, 0, acceleration.length);
-//
-//        timestamp = System.nanoTime();
-//
-//        // Find the sample period (between updates).
-//        // Convert from nanoseconds to seconds
-//        dt = 1 / (count / ((timestamp - timestampOld) / 1000000000.0f));
-//
-//        count++;
-//
-//        filterAlpha = timeConstant / (timeConstant + dt);
 
         gravity[0] = filterAlpha[0] * gravity[0] + (1 - filterAlpha[0]) * input[0];
         gravity[1] = filterAlpha[1] * gravity[1] + (1 - filterAlpha[1]) * input[1];
@@ -608,10 +508,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         linearAcceleration[2] = Math.abs(input[2] - gravity[2]);
         //sort the arrays to get the max value
         Arrays.sort(linearAcceleration);
-
-//        linearAcceleration[0] = input[0] - gravity[0];
-//        linearAcceleration[1] = input[1] - gravity[1];
-//        linearAcceleration[2] = input[2] - gravity[2];
 
         return linearAcceleration;
     }
@@ -629,27 +525,22 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                         .getOutputSizes(ImageFormat.JPEG);
 
             //Capture image with custom size
-            int width = 640;
-            int height = 480;
-            if(jpegSizes != null && jpegSizes.length > 0)
-            {
-                width = jpegSizes[0].getWidth();
-                height = jpegSizes[0].getHeight();
-            }
-            final ImageReader reader = ImageReader.newInstance(width,height,ImageFormat.JPEG,1);
+            final ImageReader reader = ImageReader.newInstance(imageWidth,imageHeight,ImageFormat.JPEG,1);
             List<Surface> outputSurface = new ArrayList<>(2);
             outputSurface.add(reader.getSurface());
             outputSurface.add(new Surface(textureView.getSurfaceTexture()));
 
             final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             captureBuilder.addTarget(reader.getSurface());
-            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) imageQuality);
 
             //Check orientation base on device
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION,ORIENTATIONS.get(rotation));
 
-            file = new File(Environment.getExternalStorageDirectory()+"/"+ UUID.randomUUID().toString()+".jpg");
+//            file = new File(Environment.getExternalStorageDirectory()+"/"+ UUID.randomUUID().toString()+".jpg");
+            file = createImageFile();
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader imageReader) {
@@ -678,21 +569,53 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     }
                 }
                 private void save(byte[] bytes) throws IOException {
-                    OutputStream outputStream = null;
-                    try{
-                        outputStream = new FileOutputStream(file);
-                        outputStream.write(bytes);
-                    }finally {
-                        if(outputStream != null)
-                            outputStream.close();
-                    }
-//                    final Bitmap bmp= BitmapFactory.decodeByteArray(bytes,0,bytes.length);
-//                    new Handler(Looper.getMainLooper()).post(new Runnable(){
-//                        @Override
-//                        public void run() {
-//                            imageView.setImageBitmap(bmp);
-//                        }
-//                    });
+                    Log.d(TAG, "Start Saving Image");
+                    final Bitmap photo= BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+                    new Handler(Looper.getMainLooper()).post(new Runnable(){
+                        @Override
+                        public void run() {
+                            if (file != null) {
+                                FileOutputStream fout;
+                                try {
+                                    // compress and then flush output file
+                                    fout = new FileOutputStream(file);
+                                    photo.compress(Bitmap.CompressFormat.PNG, 50, fout);
+                                    fout.flush();
+                                    Log.d(TAG, "Saved Image");
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                // obtaining Uri from flushed file
+                                photoURI = Uri.fromFile(file);
+                                StorageReference photoReference = mPhotoStorageReferece.child(photoURI.getLastPathSegment());
+                                photoReference.putFile(photoURI).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                                    @Override
+                                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                                        //get the URI from the task snapshot
+                                        Task<Uri> result = taskSnapshot.getMetadata().getReference().getDownloadUrl();
+                                        result.addOnSuccessListener(new OnSuccessListener<Uri>() {
+                                            @Override
+                                            public void onSuccess(Uri uri) {
+                                                //convert the URI to string
+                                                String photoStringLink = uri.toString();
+                                                Log.d(TAG, "Uploaded Image");
+                                                Alert alert = new Alert(photoStringLink, new Date());
+                                                //update this document to alert the user
+                                                Device device = new Device(macAddress, alert);
+                                                deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
+                                                    @Override
+                                                    public void onSuccess(Void aVoid) {
+                                                        Log.i(TAG, "Send Alert");
+                                                    }
+                                                });
+                                            }
+                                        });
+
+                                    }
+                                });
+                            }
+                        }
+                    });
                 }
             };
 
@@ -736,6 +659,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             Surface surface = new Surface(texture);
             captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureRequestBuilder.addTarget(surface);
+            captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) imageQuality);
+
+
             cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
@@ -758,7 +684,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private void updatePreview() {
         if(cameraDevice == null)
             Toast.makeText(this, "Error", Toast.LENGTH_SHORT).show();
-        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO);
+        captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) imageQuality);
+
         try{
             cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(),null,mBackgroundHandler);
         } catch (CameraAccessException e) {
@@ -774,6 +702,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
             //1: front camera
             cameraId = manager.getCameraIdList()[1];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+            Integer deviceLevel = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+            System.out.println("Device Level: " + String.valueOf(deviceLevel));
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             assert map != null;
             imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
@@ -846,4 +776,30 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     }
 
 
+    // function to create temporary file
+    public File createImageFile() {
+        Log.i(TAG, "create temporary image file");
+        // create timestamp for file
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+        // create file name
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        // create empty file
+        File mFileTemp = null;
+        // create string story file directory
+        String root= SensorActivity.this.getDir("my_sub_dir", Context.MODE_PRIVATE).getAbsolutePath();
+        // create file representing directory
+        File myDir = new File(root + "/Img");
+        // create directory if it does not exist
+        if(!myDir.exists()){
+            myDir.mkdirs();
+        }
+        try {
+            //  store file at directory into temporary file
+            mFileTemp=File.createTempFile(imageFileName,".jpeg",myDir.getAbsoluteFile());
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+        // return the temporary file
+        return mFileTemp;
+    }
 }

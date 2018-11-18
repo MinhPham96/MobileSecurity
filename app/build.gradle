@@ -46,5 +46,9 @@ dependencies {
 
     //notification
     implementation "com.android.support:support-compat:27.1.0"
+
+    //glide
+    implementation 'com.github.bumptech.glide:glide:4.8.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.8.0'
 }
 apply plugin: 'com.google.gms.google-services'

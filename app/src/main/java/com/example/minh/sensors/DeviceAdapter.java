@@ -17,10 +17,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.bumptech.glide.Glide;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
@@ -65,6 +67,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     public static class myViewHolder extends RecyclerView.ViewHolder {
         TextView deviceNameTextView, deviceAlertDateTextView;
         Button removeButton, editButton;
+        ImageView deviceImageView;
         public myViewHolder(View itemView) {
             super(itemView);
 
@@ -72,6 +75,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
             deviceAlertDateTextView = (TextView) itemView.findViewById(R.id.deviceAlertDateTextView);
             removeButton = (Button) itemView.findViewById(R.id.deviceRemoveButton);
             editButton = (Button) itemView.findViewById(R.id.deviceEditButton);
+            deviceImageView = (ImageView) itemView.findViewById(R.id.deviceImageView);
         }
     }
 
@@ -104,8 +108,10 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     @Override
     public void onBindViewHolder(@NonNull final myViewHolder holder, final int position) {
 
+        final Device device = mDataset.get(position);
+
         //get the device ID from the hashmap using the MAC
-        final String deviceId = mac_id_hashmap.get(mDataset.get(position).getMacAddress());
+        final String deviceId = mac_id_hashmap.get(device.getMacAddress());
         //get activity from context
         Activity activity = (Activity) context;
         //set the output for the item row
@@ -114,7 +120,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         //check if there is any update
         //if yes, alert user
         //use a listener registration for removal
-        final ListenerRegistration listenerRegistration = mFirestore.collection(deviceCollection).whereEqualTo("macAddress", mDataset.get(position).getMacAddress())
+        final ListenerRegistration listenerRegistration = mFirestore.collection(deviceCollection).whereEqualTo("macAddress", device.getMacAddress())
                 .addSnapshotListener(new EventListener<QuerySnapshot>() {
                 @Override
                 public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
@@ -125,13 +131,14 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                 for(DocumentChange documentChange: queryDocumentSnapshots.getDocumentChanges()) {
                     switch (documentChange.getType()) {
                         case MODIFIED:
-                            addNotification(mDataset.get(position).getName());
+                            addNotification(device.getName());
                             for(DocumentSnapshot documentSnapshot: queryDocumentSnapshots.getDocuments()) {
                                 //get the alert from the snapshot
                                 Alert alert = documentSnapshot.toObject(Device.class).getAlert();
                                 //display the date on the item row
                                 holder.deviceAlertDateTextView.setText(
                                         dateFormat.format(alert.getDate()));
+                                Glide.with(context).load(alert.getImageURL()).into(holder.deviceImageView);
                                 //add the alert to the history collection of the user device document
                                 mFirestore.collection(userCollection).document(user.getUid())
                                         .collection(deviceCollection).document(deviceId)
@@ -146,7 +153,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         //add the listener registration to the list
         listenerRegistrationList.add(listenerRegistration);
 
-        holder.deviceNameTextView.setText(mDataset.get(position).getName());
+        holder.deviceNameTextView.setText(device.getName());
 
         //edit device button
         holder.editButton.setOnClickListener(new View.OnClickListener() {
@@ -164,7 +171,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                 final EditText deviceNameAlertEditText = new EditText(context);
                 //set the hint
                 deviceNameAlertEditText.setHint("Device Name");
-                deviceNameAlertEditText.setText(mDataset.get(position).getName());
+                deviceNameAlertEditText.setText(device.getName());
                 //add the input to the layout
                 layout.addView(deviceNameAlertEditText);
                 builder.setView(layout);
@@ -176,7 +183,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                         if(TextUtils.isEmpty(deviceName)) {
                             Toast.makeText(context, "Please enter device name", Toast.LENGTH_LONG).show();
                         } else {
-                            Device device = mDataset.get(position);
                             device.setName(deviceName);
                             if(user != null) {
                                 mFirestore.collection(userCollection).document(user.getUid())
@@ -212,7 +218,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         //get the device ID from the hashmap
-                        Device device = mDataset.get(position);
                         device.setOwned(false);
                         if(user != null) {
                             mFirestore.collection(userCollection).document(user.getUid())

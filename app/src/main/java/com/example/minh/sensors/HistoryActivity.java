@@ -78,7 +78,7 @@ public class HistoryActivity extends AppCompatActivity {
         mLayoutManager = new LinearLayoutManager(this);
         alertRecyclerView.setLayoutManager(mLayoutManager);
 
-        mAlertAdapter = new AlertAdapter(alertList);
+        mAlertAdapter = new AlertAdapter(alertList, this);
         alertRecyclerView.setAdapter(mAlertAdapter);
 
     }

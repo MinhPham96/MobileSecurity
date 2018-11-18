@@ -8,11 +8,17 @@
     <!--Edit everything in this linear layout-->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="110dp"
+        android:layout_height="210dp"
         android:orientation="vertical"
         android:layout_margin="10dp"
         android:background="@color/lightgray"
         >
+
+        <ImageView
+            android:id="@+id/deviceImageView"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            />
 
         <TextView
             android:id="@+id/deviceNameTextView"

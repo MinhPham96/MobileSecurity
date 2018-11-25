@@ -8,71 +8,75 @@
     <!--Edit everything in this linear layout-->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="210dp"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_margin="10dp"
         android:background="@color/lightgray"
         >
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/silver"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/deviceNameTextView"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_gravity="center_vertical"
+                android:textSize="20dp"
+                android:text="Name"
+                android:lines="1"
+                android:scrollHorizontally="true"
+                android:ellipsize="end"
+                />
+
+            <ImageButton
+                android:id="@+id/deviceArrowButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/down"/>
+
+            <ImageButton
+                android:id="@+id/deviceEditButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/edit"
+                />
+
+            <ImageButton
+                android:id="@+id/deviceRemoveButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/delete"/>
+
+        </LinearLayout>
+
+
+
         <ImageView
             android:id="@+id/deviceImageView"
             android:layout_width="match_parent"
-            android:layout_height="100dp"
-            />
-
-        <TextView
-            android:id="@+id/deviceNameTextView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:textSize="20dp"
-            android:text="Name"
+            android:layout_height="300dp"
+            android:visibility="gone"
             />
 
         <TextView
             android:id="@+id/deviceAlertDateTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
             android:lines="1"
             android:scrollHorizontally="true"
             android:ellipsize="end"
-            android:textSize="20dp"
+            android:textSize="25dp"
             android:text="Alert date"
-            />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
             android:background="@color/silver"
-            android:gravity="end"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/deviceEditButton"
-                android:background="@color/slategray"
-                android:layout_marginEnd="10dp"
-                android:textColor="@color/white"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:text="Edit"
-                />
-
-            <Button
-                android:id="@+id/deviceRemoveButton"
-                android:background="@color/slategray"
-                android:textColor="@color/white"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:text="Remove"
-                />
-
-        </LinearLayout>
-
+            />
 
     </LinearLayout>
 

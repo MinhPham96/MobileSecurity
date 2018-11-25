@@ -6,6 +6,7 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -24,10 +25,13 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
     public static class myViewHolder extends RecyclerView.ViewHolder {
         TextView alertDateTextView;
         ImageView alertImageView;
+        ImageButton alertArrowButton;
+        boolean showImage = false;
         public myViewHolder(View itemView) {
             super(itemView);
             alertDateTextView = (TextView) itemView.findViewById(R.id.alertDateTextView);
             alertImageView = (ImageView) itemView.findViewById(R.id.alertImageView);
+            alertArrowButton = (ImageButton) itemView.findViewById(R.id.alertArrowButton);
         }
     }
 
@@ -48,7 +52,7 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
     }
 
     @Override
-    public void onBindViewHolder(@NonNull myViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull final myViewHolder holder, int position) {
         //set the output for the item row
         holder.alertDateTextView.setText(dateFormat.format(mDataset.get(position).getDate()));
         if(mDataset.get(position).getImageURL() != null) {
@@ -56,6 +60,20 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
                     .load(mDataset.get(position).getImageURL())
                     .into(holder.alertImageView);
         }
+        holder.alertArrowButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if(holder.showImage) {
+                    holder.showImage = false;
+                    holder.alertImageView.setVisibility(View.GONE);
+                    holder.alertArrowButton.setImageResource(R.drawable.down);
+                } else {
+                    holder.showImage = true;
+                    holder.alertImageView.setVisibility(View.VISIBLE);
+                    holder.alertArrowButton.setImageResource(R.drawable.up);
+                }
+            }
+        });
     }
 
     //get the size of the list

@@ -3,6 +3,7 @@ package com.example.minh.sensors;
 import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -47,6 +48,8 @@ import android.widget.Toast;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -81,6 +84,9 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private PowerManager.WakeLock wl;
 
     private FirebaseFirestore mFirestore;
+    private FirebaseAuth mFirebaseAuth;
+    private FirebaseAuth.AuthStateListener mAuthListener;
+    private FirebaseUser user;
     private DocumentReference deviceDocRef;
     private FirebaseStorage mFirebaseStorage;
     private StorageReference mPhotoStorageReferece;
@@ -139,7 +145,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private SharedPreferences sharedPref;
     private String sharedDeviceType;
     private int deviceType = 0;
-    private String[] deviceTypeName;
+//    private String[] deviceTypeName;
+    private String deviceUseCase;
     private int selectedFeedback = 0;
     private boolean feedbackAvailable = false;
 
@@ -207,9 +214,24 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         //get the device type from the shared preference
         sharedPref = this.getSharedPreferences("com.example.app", Context.MODE_PRIVATE);
         sharedDeviceType = getResources().getString(R.string.sharedPrefDeviceType);
-        deviceType = sharedPref.getInt(sharedDeviceType, 0);
-        deviceTypeName = getResources().getStringArray(R.array.device_type);
-//        Toast.makeText(SensorActivity.this, String.valueOf(deviceTypeName[deviceType]), Toast.LENGTH_SHORT).show();
+//        deviceType = sharedPref.getInt(sharedDeviceType, 0);
+        deviceUseCase = sharedPref.getString(sharedDeviceType, "swing_door");
+//        deviceTypeName = getResources().getStringArray(R.array.device_type);
+        Toast.makeText(SensorActivity.this, deviceUseCase, Toast.LENGTH_SHORT).show();
+
+        mFirebaseAuth = FirebaseAuth.getInstance();
+        mAuthListener = new FirebaseAuth.AuthStateListener() {
+            @Override
+            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                user = firebaseAuth.getCurrentUser();
+                if (user == null) {
+                    Intent intent = new Intent(SensorActivity.this, MainActivity.class);
+                    startActivity(intent);
+                    finish();
+                }
+            }
+        };
+        mFirebaseAuth.addAuthStateListener(mAuthListener);
 
         mFirestore = FirebaseFirestore.getInstance();
         //temporary path for the device doc ref
@@ -228,7 +250,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         });
 
         //get the adaptive threshold from the database
-        mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType]).get()
+        mFirestore.collection(useCaseCollection).document(deviceUseCase).get()
             .addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
                 @Override
                 public void onComplete(@NonNull Task<DocumentSnapshot> task) {
@@ -286,10 +308,10 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                             Data newData = new Data(peak, new Date());
                             //depends on the feedback, the data will be stored in correct or false data collection
                             if(selectedFeedback == 1) {
-                                mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType])
+                                mFirestore.collection(useCaseCollection).document(deviceUseCase)
                                         .collection("false_data").add(newData);
                             } else {
-                                mFirestore.collection(useCaseCollection).document(deviceTypeName[deviceType])
+                                mFirestore.collection(useCaseCollection).document(deviceUseCase)
                                         .collection("correct_data").add(newData);
                             }
                             dialog.dismiss();
@@ -449,6 +471,11 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     public void onResume() {
         super.onResume();
         Log.i(TAG, "onResume");
+//        if (user == null) {
+//            Intent intent = new Intent(SensorActivity.this, MainActivity.class);
+//            startActivity(intent);
+//            finish();
+//        }
         startBackgroundThread();
         if(textureView.isAvailable()) {
             openCamera();
@@ -477,6 +504,12 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
         //release wakelock and unregister sensor to save power
         wl.release();
         sensorManager.unregisterListener(this);
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
     }
 
     public void calculateAlpha(float[] axisData) {

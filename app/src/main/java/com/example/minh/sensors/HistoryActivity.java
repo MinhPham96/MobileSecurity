@@ -1,6 +1,7 @@
 package com.example.minh.sensors;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -66,6 +67,10 @@ public class HistoryActivity extends AppCompatActivity {
             if(user != null) {
                 userId = user.getUid();
                 getAlertHistoryList();
+            } else {
+                Intent intent = new Intent(HistoryActivity.this, MainActivity.class);
+                startActivity(intent);
+                finish();
             }
             }
         };
@@ -87,6 +92,16 @@ public class HistoryActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         finish();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+//        if(user == null){
+//            Intent intent = new Intent(HistoryActivity.this, MainActivity.class);
+//            startActivity(intent);
+//            finish();
+//        }
     }
 
     public void getAlertHistoryList(){

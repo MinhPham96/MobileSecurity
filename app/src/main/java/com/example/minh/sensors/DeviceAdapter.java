@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -66,15 +67,16 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
     //custom view holder class to store all the element of the row
     public static class myViewHolder extends RecyclerView.ViewHolder {
         TextView deviceNameTextView, deviceAlertDateTextView;
-        Button removeButton, editButton;
+        ImageButton removeButton, editButton, arrowButton;
         ImageView deviceImageView;
+        boolean showImage = false;
         public myViewHolder(View itemView) {
             super(itemView);
-
             deviceNameTextView = (TextView) itemView.findViewById(R.id.deviceNameTextView);
             deviceAlertDateTextView = (TextView) itemView.findViewById(R.id.deviceAlertDateTextView);
-            removeButton = (Button) itemView.findViewById(R.id.deviceRemoveButton);
-            editButton = (Button) itemView.findViewById(R.id.deviceEditButton);
+            removeButton = (ImageButton) itemView.findViewById(R.id.deviceRemoveButton);
+            editButton = (ImageButton) itemView.findViewById(R.id.deviceEditButton);
+            arrowButton = (ImageButton) itemView.findViewById(R.id.deviceArrowButton);
             deviceImageView = (ImageView) itemView.findViewById(R.id.deviceImageView);
         }
     }
@@ -143,6 +145,9 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                                 mFirestore.collection(userCollection).document(user.getUid())
                                         .collection(deviceCollection).document(deviceId)
                                         .collection(historyCollection).add(alert);
+                                holder.showImage = true;
+                                holder.deviceImageView.setVisibility(View.VISIBLE);
+                                holder.arrowButton.setImageResource(R.drawable.up);
                             }
                             break;
                     }
@@ -156,6 +161,22 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         holder.deviceNameTextView.setText(device.getName());
 
         //edit device button
+        holder.arrowButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if(holder.showImage) {
+                    holder.showImage = false;
+                    holder.deviceImageView.setVisibility(View.GONE);
+                    holder.arrowButton.setImageResource(R.drawable.down);
+                } else {
+                    holder.showImage = true;
+                    holder.deviceImageView.setVisibility(View.VISIBLE);
+                    holder.arrowButton.setImageResource(R.drawable.up);
+                }
+            }
+        });
+
+
         holder.editButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {

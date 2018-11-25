@@ -70,9 +70,9 @@ public class LoginActivity extends AppCompatActivity {
                     } else {
                         //if log in, move back to main activity
                         Toast.makeText(LoginActivity.this, "Successfully log in", Toast.LENGTH_SHORT).show();
-                        Intent intent = new Intent(LoginActivity.this, MainActivity.class);// New activity
-                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                        startActivity(intent);
+//                        Intent intent = new Intent(LoginActivity.this, MainActivity.class);// New activity
+//                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+//                        startActivity(intent);
                         finish();
                     }
                 }

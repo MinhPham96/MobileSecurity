@@ -6,15 +6,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Camera;
-import android.graphics.SurfaceTexture;
-import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CaptureRequest;
-import android.media.ImageReader;
 import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
@@ -25,16 +17,11 @@ import android.support.v7.widget.RecyclerView;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.Size;
-import android.util.SparseIntArray;
-import android.view.Surface;
-import android.view.TextureView;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -54,7 +41,6 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
-import java.io.File;
 import java.math.BigInteger;
 import java.net.NetworkInterface;
 import java.nio.charset.Charset;
@@ -75,11 +61,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Main Activity";
     private String deviceCollection;
     private String userCollection;
+    private String usecaseCollection;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
     private PowerManager.WakeLock wl;
 
-    private Button loginButton, addDeviceButton;
+    private Button logoutButton, addDeviceButton;
     private Spinner typeSpinner;
     private TextView newAlertTextView, usernameTextView;
     private RecyclerView deviceRecyclerView;
@@ -99,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences sharedPref;
     private String sharedDeviceType;
     private int deviceType = 0;
+    private String deviceUseCase;
+    private List<String> spinnerArray = new ArrayList<>();
 
     private static final String CHANNEL_ID  = "MS1211";
 
@@ -120,12 +109,13 @@ public class MainActivity extends AppCompatActivity {
 
         userCollection = getResources().getString(R.string.fireStoreUserCollection);
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
+        usecaseCollection = getResources().getString(R.string.fireStoreUseCaseCollection);
 
         //setup Firestore and authentication
         mFirestore = FirebaseFirestore.getInstance();
         mFirebaseAuth = FirebaseAuth.getInstance();
 
-        loginButton = (Button) findViewById(R.id.loginButton);
+        logoutButton = (Button) findViewById(R.id.loginButton);
         addDeviceButton = (Button) findViewById(R.id.addDeviceButton);
         usernameTextView = (TextView) findViewById(R.id.usernameTextView);
         newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
@@ -136,11 +126,6 @@ public class MainActivity extends AppCompatActivity {
             public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
                 user = firebaseAuth.getCurrentUser();
                 if(user == null) {
-                    loginButton.setText("Login");
-                    loginState = false;
-                    usernameTextView.setText("Username");
-                    addDeviceButton.setVisibility(View.VISIBLE);
-                    addDeviceButton.setClickable(true);
                     //remove listener and clear the recycler view
                     if(listenerRegistration != null){
                         listenerRegistration.remove();
@@ -148,17 +133,14 @@ public class MainActivity extends AppCompatActivity {
                     mDeviceAdapter.clear();
                     deviceList.clear();
                     mac_id_hashmap.clear();
-//                    mDeviceAdapter.notifyDataSetChanged();
-//                    deviceRecyclerView.setVisibility(View.GONE);
+                    Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                    startActivity(intent);
+                    initCheck = true;
                 } else {
                     userId = user.getUid();
-                    loginButton.setText("logout");
-                    loginState = true;
                     usernameTextView.setText(user.getDisplayName());
                     setupUserDeviceListener();
-                    addDeviceButton.setVisibility(View.GONE);
-                    addDeviceButton.setClickable(false);
-//                    deviceRecyclerView.setVisibility(View.VISIBLE);
+                    initCheck = true;
                 }
             }
         };
@@ -176,18 +158,14 @@ public class MainActivity extends AppCompatActivity {
 
 
         //configure the login button depends on the login state
-        loginButton.setOnClickListener(new View.OnClickListener() {
+        logoutButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(loginState) {
-                    //when sign out, clear the user device list
-                    mFirebaseAuth.signOut();
-                    deviceList.clear();
-                    mDeviceAdapter.notifyDataSetChanged();
-                } else {
-                    Intent intent = new Intent(MainActivity.this, LoginActivity.class);
-                    startActivity(intent);
-                }
+                mFirebaseAuth.signOut();
+                deviceList.clear();
+                mDeviceAdapter.notifyDataSetChanged();
+                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                startActivity(intent);
             }
         });
 
@@ -204,10 +182,25 @@ public class MainActivity extends AppCompatActivity {
         //spinner
         typeSpinner = (Spinner) findViewById(R.id.typeSpinner);
         // Create an ArrayAdapter using the string array and a default spinner layout
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.device_type, android.R.layout.simple_spinner_item);
+//        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+//                R.array.device_type, android.R.layout.simple_spinner_item);
+        final ArrayAdapter<String> adapter = new ArrayAdapter<String>
+                (this, android.R.layout.simple_spinner_dropdown_item, spinnerArray);
+
+        mFirestore.collection(usecaseCollection).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if(task.isSuccessful()){
+                    for(DocumentSnapshot documentSnapshot: task.getResult().getDocuments()){
+                        spinnerArray.add(documentSnapshot.getId());
+                    }
+                    adapter.notifyDataSetChanged();
+                }
+            }
+        });
+
         // Specify the layout to use when the list of choices appears
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+//        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         // Apply the adapter to the spinner
         typeSpinner.setAdapter(adapter);
         typeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -215,6 +208,7 @@ public class MainActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long l) {
                 //get the device type from the position
                 deviceType = position;
+                deviceUseCase = spinnerArray.get(position);
             }
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
@@ -226,6 +220,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(initCheck && user == null){
+            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+            startActivity(intent);
+        }
     }
 
     public void setupUserDeviceListener() {
@@ -400,7 +403,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void moveToSensor(View view) {
         //save the device type to shared preference
-        sharedPref.edit().putInt(sharedDeviceType,deviceType).apply();
+//        sharedPref.edit().putInt(sharedDeviceType,deviceType).apply();
+        sharedPref.edit().putString(sharedDeviceType, deviceUseCase).apply();
         Intent intent = new Intent(MainActivity.this, SensorActivity.class);
         startActivity(intent);
     }

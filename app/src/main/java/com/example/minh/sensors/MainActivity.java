@@ -17,11 +17,17 @@ import android.support.v7.widget.RecyclerView;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -66,9 +72,9 @@ public class MainActivity extends AppCompatActivity {
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
     private PowerManager.WakeLock wl;
 
-    private Button logoutButton, addDeviceButton;
+    private ImageButton sensorButton, addDeviceButton;
     private Spinner typeSpinner;
-    private TextView newAlertTextView, usernameTextView;
+    private TextView usernameTextView;
     private RecyclerView deviceRecyclerView;
     private DeviceAdapter mDeviceAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
@@ -115,10 +121,8 @@ public class MainActivity extends AppCompatActivity {
         mFirestore = FirebaseFirestore.getInstance();
         mFirebaseAuth = FirebaseAuth.getInstance();
 
-        logoutButton = (Button) findViewById(R.id.loginButton);
-        addDeviceButton = (Button) findViewById(R.id.addDeviceButton);
+        addDeviceButton = (ImageButton) findViewById(R.id.addDeviceButton);
         usernameTextView = (TextView) findViewById(R.id.usernameTextView);
-        newAlertTextView = (TextView) findViewById(R.id.newAlertTextView);
 
         //add the authentication listener
         mAuthListener = new FirebaseAuth.AuthStateListener() {
@@ -138,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
                     initCheck = true;
                 } else {
                     userId = user.getUid();
-                    usernameTextView.setText(user.getDisplayName());
+                    usernameTextView.setText(user.getDisplayName() + "'s Device List");
                     setupUserDeviceListener();
                     initCheck = true;
                 }
@@ -156,31 +160,18 @@ public class MainActivity extends AppCompatActivity {
         mDeviceAdapter = new DeviceAdapter(deviceList, mac_id_hashmap, this);
         deviceRecyclerView.setAdapter(mDeviceAdapter);
 
-
-        //configure the login button depends on the login state
-        logoutButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                mFirebaseAuth.signOut();
-                deviceList.clear();
-                mDeviceAdapter.notifyDataSetChanged();
-                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
-                startActivity(intent);
-            }
-        });
-
         storeNewDevice();
 
         //register the device to the currently logged in user
         addDeviceButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                setupAlertDialog();
+                setupAddDeivceAlertDialog();
             }
         });
 
         //spinner
-        typeSpinner = (Spinner) findViewById(R.id.typeSpinner);
+        typeSpinner = new Spinner(this);
         // Create an ArrayAdapter using the string array and a default spinner layout
 //        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
 //                R.array.device_type, android.R.layout.simple_spinner_item);
@@ -215,6 +206,14 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+
+        sensorButton = (ImageButton) findViewById(R.id.sensorButton);
+        sensorButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                setupSensorAlertDialog();
+            }
+        });
     }
 
     @Override
@@ -229,6 +228,24 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, LoginActivity.class);
             startActivity(intent);
         }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        new MenuInflater(this).inflate(R.menu.menu, menu);
+        return (super.onCreateOptionsMenu(menu));
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.menu_logout) {
+            mFirebaseAuth.signOut();
+            deviceList.clear();
+            mDeviceAdapter.notifyDataSetChanged();
+            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+            startActivity(intent);
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     public void setupUserDeviceListener() {
@@ -342,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void setupAlertDialog() {
+    public void setupAddDeivceAlertDialog() {
         //create an alert dialog builder
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         //set the title for the dialog
@@ -401,7 +418,45 @@ public class MainActivity extends AppCompatActivity {
         builder.show();
     }
 
-    public void moveToSensor(View view) {
+    public void setupSensorAlertDialog(){
+        //create an alert dialog builder
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        //set the title for the dialog
+        builder.setTitle("Select Use Case");
+
+        final LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+
+        //add the input to the layout
+        layout.addView(typeSpinner);
+//        layout.setLayoutParams(new LinearLayout.LayoutParams(300, 300));
+
+        builder.setView(layout);
+
+
+        // Set up the buttons
+        builder.setPositiveButton("Select", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                moveToSensor();
+            }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+
+//        builder.show();
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+        alertDialog.getWindow().setLayout(700,500);
+
+
+    }
+
+    public void moveToSensor() {
         //save the device type to shared preference
 //        sharedPref.edit().putInt(sharedDeviceType,deviceType).apply();
         sharedPref.edit().putString(sharedDeviceType, deviceUseCase).apply();

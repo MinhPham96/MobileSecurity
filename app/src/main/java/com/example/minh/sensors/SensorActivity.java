@@ -38,10 +38,12 @@ import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.MenuItem;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -93,9 +95,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
     private SensorManager sensorManager;
     private Sensor sensor;
-    private TextView counterTextView, peakTextView, startTimeTextView, stopTimeTextView;
-    private TextView xAxisTextView, yAxisTextView, zAxisTextView;
-    private Button runButton, feedbackButton;
+    private TextView counterTextView, peakTextView;
+    private ImageButton runButton, feedbackButton;
     private float ax, filteredData, thresholdAlpha, thresholdBeta;
     private Queue<Float> dataThresholdQueue = new LinkedList<>();
     private Queue<Float> dataTransferQueue = new LinkedList<>();
@@ -133,6 +134,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     private float peak = 0f;
     private float submitPeak = 0f;
     private static final float minimumPeak  = 0.05f;
+    private boolean hasEvent = false;
 
     private final Handler mHandler = new Handler();
     private LineGraphSeries<DataPoint> mDataSeries;
@@ -228,6 +230,8 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     Intent intent = new Intent(SensorActivity.this, MainActivity.class);
                     startActivity(intent);
                     finish();
+                } else {
+                    runButton.setVisibility(View.VISIBLE);
                 }
             }
         };
@@ -270,24 +274,18 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
 
         counterTextView = (TextView) findViewById(R.id.counterTextView);
         peakTextView = (TextView) findViewById(R.id.peakTextView);
-        startTimeTextView = (TextView) findViewById(R.id.startTimeTextView);
-        stopTimeTextView = (TextView) findViewById(R.id.stopTimeTextView);
 
-        xAxisTextView = (TextView) findViewById(R.id.xAxisTextView);
-        yAxisTextView = (TextView) findViewById(R.id.yAxisTextView);
-        zAxisTextView = (TextView) findViewById(R.id.zAxisTextView);
-
-        runButton = (Button) findViewById(R.id.runButton);
+        runButton = (ImageButton) findViewById(R.id.runButton);
         runButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 sensorIsRun = !sensorIsRun;
-                if(sensorIsRun) runButton.setText("Pause");
-                else runButton.setText("Run");
+                if(sensorIsRun) runButton.setImageResource(R.drawable.pause);
+                else runButton.setImageResource(R.drawable.play);
             }
         });
 
-        feedbackButton = (Button) findViewById(R.id.feedbackButton);
+        feedbackButton = (ImageButton) findViewById(R.id.feedbackButton);
         feedbackButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -305,7 +303,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                     builder.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int i) {
-                            Data newData = new Data(peak, new Date());
+                            Data newData = new Data(submitPeak, new Date());
                             //depends on the feedback, the data will be stored in correct or false data collection
                             if(selectedFeedback == 1) {
                                 mFirestore.collection(useCaseCollection).document(deviceUseCase)
@@ -317,7 +315,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                             dialog.dismiss();
                             //the feedback only for latest reading
                             //so feedback is unavailable after submit
-                            feedbackButton.setVisibility(View.GONE);
+                            feedbackButton.setVisibility(View.INVISIBLE);
                             feedbackAvailable = false;
                         }
                     });
@@ -386,14 +384,6 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
 
-//        xAxisTextView.setText("x: " + String.valueOf(String.format("%.2f", sensorEvent.values[0])));
-//        yAxisTextView.setText("y: " + String.valueOf(String.format("%.2f", sensorEvent.values[1])));
-//        zAxisTextView.setText("z: " + String.valueOf(String.format("%.2f", sensorEvent.values[2])));
-
-        xAxisTextView.setText("x: " + String.valueOf(filterAlpha[0]));
-        yAxisTextView.setText("y: " + String.valueOf(filterAlpha[1]));
-        zAxisTextView.setText("z: " + String.valueOf(filterAlpha[2]));
-
         if(sensorIsRun) {
             dataLastXValue += 1d;
             //since the data is filtered and sorted, the max is the last value
@@ -427,32 +417,24 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 mBetaThresholdSeries.appendData(new DataPoint(dataLastXValue, thresholdBeta), true, 40);
 
                 //if the data transfer pass beta, mark as start time
-                if(dataTransferMean > thresholdBeta) {
+                if(dataTransferMean > thresholdBeta && !hasEvent) {
                     //reset the peak when there is a reading
                     peak = 0;
                     feedbackAvailable = true;
+                    hasEvent = true;
 
-                } else if (dataTransferMean < thresholdBeta) {
+                } else if (dataTransferMean < thresholdBeta && hasEvent) {
                     //the submit peak will be recorded when the event is done
                     if(feedbackAvailable)feedbackButton.setVisibility(View.VISIBLE);
                     submitPeak = peak;
                     eventTrigger = false;
+                    hasEvent = false;
                 }
 
                 //if the data transfer pass the alpha, mark an event
                 if(!eventTrigger && (dataTransferMean > adaptiveThreshold)) {
                     eventTrigger = true;
                     takePicture();
-                    //move to takePicture()
-//                    Alert alert = new Alert(startTime,stopTime, stopTime - startTime, new Date());
-//                    //update this document to alert the user
-//                    Device device = new Device(macAddress, alert);
-//                    deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {
-//                        @Override
-//                        public void onSuccess(Void aVoid) {
-//                            Log.i(TAG, "Send Alert");
-//                        }
-//                    });
                     eventCounter += 1;
                     counterTextView.setText("Event Counter: " + String.valueOf(eventCounter));
                 }
@@ -510,6 +492,15 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
     public void onBackPressed() {
         super.onBackPressed();
         finish();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()){
+            case android.R.id.home:
+                finish();
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     public void calculateAlpha(float[] axisData) {

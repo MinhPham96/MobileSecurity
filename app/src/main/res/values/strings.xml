@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">sensors</string>
+    <string name="app_name">Mobile Security</string>
 
     <!--Firestore collections-->
     <string name="fireStoreUserCollection">users</string>

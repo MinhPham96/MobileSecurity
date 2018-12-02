@@ -28,6 +28,7 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -138,24 +139,31 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                                 //get the alert from the snapshot
                                 String documentID = documentChange.getDocument().getId();
                                 Device notiDevice = documentSnapshot.toObject(Device.class);
-                                Alert alert = notiDevice.getAlert();
-                                if(!alert.isChecked()){
-                                    addNotification(device.getName());
-                                    notiDevice.getAlert().setChecked(true);
-                                    //display the date on the item row
-                                    holder.deviceAlertDateTextView.setText(
-                                            dateFormat.format(alert.getDate()));
-                                    Glide.with(context.getApplicationContext()).load(alert.getImageURL()).into(holder.deviceImageView);
-                                    //add the alert to the history collection of the user device document
-                                    mFirestore.collection(userCollection).document(user.getUid())
-                                            .collection(deviceCollection).document(deviceId)
-                                            .collection(historyCollection).add(alert);
-                                    holder.showImage = true;
-                                    holder.deviceImageView.setVisibility(View.VISIBLE);
-                                    holder.arrowButton.setImageResource(R.drawable.up);
-                                    mFirestore.collection(deviceCollection).document(documentID)
-                                            .set(notiDevice);
-                                }
+                                final Alert alert = notiDevice.getAlert();
+                                final CollectionReference historyCollectionReference = mFirestore.collection(userCollection)
+                                    .document(user.getUid()).collection(deviceCollection).document(deviceId)
+                                    .collection(historyCollection);
+                                //check if the alert is already existed in the history
+                                historyCollectionReference.whereEqualTo("date", alert.getDate()).get()
+                                    .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                        @Override
+                                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                            //if it is not existed
+                                            //display the alert and add it to history
+                                            if(task.getResult().isEmpty()){
+                                                addNotification(device.getName());
+                                                //display the date on the item row
+                                                holder.deviceAlertDateTextView.setText(
+                                                        dateFormat.format(alert.getDate()));
+                                                Glide.with(context.getApplicationContext()).load(alert.getImageURL()).into(holder.deviceImageView);
+                                                //add the alert to the history collection of the user device document
+                                                historyCollectionReference.add(alert);
+                                                holder.showImage = true;
+                                                holder.deviceImageView.setVisibility(View.VISIBLE);
+                                                holder.arrowButton.setImageResource(R.drawable.up);
+                                            }
+                                        }
+                                    });
                             }
                             break;
                     }

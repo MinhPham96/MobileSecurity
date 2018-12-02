@@ -249,6 +249,7 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, LoginActivity.class);
             startActivity(intent);
         }
+        //restore the alert listener if the activity is back from another activity
         if(changeActivity){
             setupUserDeviceListener();
             changeActivity = false;
@@ -258,6 +259,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        //check if the phone is turned off or move to another activity
+        //if move to another activity
+        //remove the listener to avoid multiple alert history
         if(changeActivity) {
             mDeviceAdapter.clear();
             deviceList.clear();

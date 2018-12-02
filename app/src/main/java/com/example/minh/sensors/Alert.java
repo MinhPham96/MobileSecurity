@@ -8,12 +8,10 @@ public class Alert {
     private String imageURL;
     @ServerTimestamp
     private Date date;
-    private boolean checked;
 
-    public Alert(String imageURL, Date date, boolean checked) {
+    public Alert(String imageURL, Date date) {
         this.imageURL = imageURL;
         this.date = date;
-        this.checked = checked;
     }
 
     public Alert() {
@@ -33,13 +31,5 @@ public class Alert {
 
     public void setDate(Date date) {
         this.date = date;
-    }
-
-    public boolean isChecked() {
-        return checked;
-    }
-
-    public void setChecked(boolean checked) {
-        this.checked = checked;
     }
 }

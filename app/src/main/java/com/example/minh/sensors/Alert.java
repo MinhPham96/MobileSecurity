@@ -5,13 +5,15 @@ import com.google.firebase.firestore.ServerTimestamp;
 import java.util.Date;
 
 public class Alert {
-    String imageURL;
+    private String imageURL;
     @ServerTimestamp
-    Date date;
+    private Date date;
+    private boolean checked;
 
-    public Alert(String imageURL, Date date) {
+    public Alert(String imageURL, Date date, boolean checked) {
         this.imageURL = imageURL;
         this.date = date;
+        this.checked = checked;
     }
 
     public Alert() {
@@ -31,5 +33,13 @@ public class Alert {
 
     public void setDate(Date date) {
         this.date = date;
+    }
+
+    public boolean isChecked() {
+        return checked;
+    }
+
+    public void setChecked(boolean checked) {
+        this.checked = checked;
     }
 }

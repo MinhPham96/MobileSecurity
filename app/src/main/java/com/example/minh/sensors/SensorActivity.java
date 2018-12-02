@@ -623,7 +623,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                                                 //convert the URI to string
                                                 String photoStringLink = uri.toString();
                                                 Log.d(TAG, "Uploaded Image");
-                                                Alert alert = new Alert(photoStringLink, new Date());
+                                                Alert alert = new Alert(photoStringLink, new Date(), false);
                                                 //update this document to alert the user
                                                 Device device = new Device(macAddress, alert);
                                                 deviceDocRef.set(device).addOnSuccessListener(new OnSuccessListener<Void>() {

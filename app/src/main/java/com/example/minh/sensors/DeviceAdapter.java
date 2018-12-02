@@ -35,6 +35,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.SimpleDateFormat;
@@ -133,21 +134,28 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
                 for(DocumentChange documentChange: queryDocumentSnapshots.getDocumentChanges()) {
                     switch (documentChange.getType()) {
                         case MODIFIED:
-                            addNotification(device.getName());
                             for(DocumentSnapshot documentSnapshot: queryDocumentSnapshots.getDocuments()) {
                                 //get the alert from the snapshot
-                                Alert alert = documentSnapshot.toObject(Device.class).getAlert();
-                                //display the date on the item row
-                                holder.deviceAlertDateTextView.setText(
-                                        dateFormat.format(alert.getDate()));
-                                Glide.with(context).load(alert.getImageURL()).into(holder.deviceImageView);
-                                //add the alert to the history collection of the user device document
-                                mFirestore.collection(userCollection).document(user.getUid())
-                                        .collection(deviceCollection).document(deviceId)
-                                        .collection(historyCollection).add(alert);
-                                holder.showImage = true;
-                                holder.deviceImageView.setVisibility(View.VISIBLE);
-                                holder.arrowButton.setImageResource(R.drawable.up);
+                                String documentID = documentChange.getDocument().getId();
+                                Device notiDevice = documentSnapshot.toObject(Device.class);
+                                Alert alert = notiDevice.getAlert();
+                                if(!alert.isChecked()){
+                                    addNotification(device.getName());
+                                    notiDevice.getAlert().setChecked(true);
+                                    //display the date on the item row
+                                    holder.deviceAlertDateTextView.setText(
+                                            dateFormat.format(alert.getDate()));
+                                    Glide.with(context.getApplicationContext()).load(alert.getImageURL()).into(holder.deviceImageView);
+                                    //add the alert to the history collection of the user device document
+                                    mFirestore.collection(userCollection).document(user.getUid())
+                                            .collection(deviceCollection).document(deviceId)
+                                            .collection(historyCollection).add(alert);
+                                    holder.showImage = true;
+                                    holder.deviceImageView.setVisibility(View.VISIBLE);
+                                    holder.arrowButton.setImageResource(R.drawable.up);
+                                    mFirestore.collection(deviceCollection).document(documentID)
+                                            .set(notiDevice);
+                                }
                             }
                             break;
                     }

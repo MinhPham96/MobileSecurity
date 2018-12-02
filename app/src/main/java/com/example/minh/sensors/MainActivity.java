@@ -20,6 +20,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -68,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private String deviceCollection;
     private String userCollection;
     private String usecaseCollection;
+    private static String salt;
     private static final String macAddress = getMacAddr();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
     private PowerManager.WakeLock wl;
@@ -97,6 +99,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String CHANNEL_ID  = "MS1211";
 
+    private boolean changeActivity = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -116,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
         userCollection = getResources().getString(R.string.fireStoreUserCollection);
         deviceCollection = getResources().getString(R.string.fireStoreDeviceCollection);
         usecaseCollection = getResources().getString(R.string.fireStoreUseCaseCollection);
+        salt = getResources().getString(R.string.salt);
 
         //setup Firestore and authentication
         mFirestore = FirebaseFirestore.getInstance();
@@ -141,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(intent);
                     initCheck = true;
                 } else {
+                    storeNewDevice();
                     userId = user.getUid();
                     usernameTextView.setText(user.getDisplayName() + "'s Device List");
                     setupUserDeviceListener();
@@ -159,8 +165,23 @@ public class MainActivity extends AppCompatActivity {
 
         mDeviceAdapter = new DeviceAdapter(deviceList, mac_id_hashmap, this);
         deviceRecyclerView.setAdapter(mDeviceAdapter);
+        deviceRecyclerView.addOnItemTouchListener(new RecyclerView.OnItemTouchListener() {
+            @Override
+            public boolean onInterceptTouchEvent(RecyclerView rv, MotionEvent e) {
+                return false;
+            }
 
-        storeNewDevice();
+            @Override
+            public void onTouchEvent(RecyclerView rv, MotionEvent e) {
+                changeActivity = true;
+            }
+
+            @Override
+            public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) {
+
+            }
+        });
+
 
         //register the device to the currently logged in user
         addDeviceButton.setOnClickListener(new View.OnClickListener() {
@@ -228,7 +249,34 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, LoginActivity.class);
             startActivity(intent);
         }
+        if(changeActivity){
+            setupUserDeviceListener();
+            changeActivity = false;
+        }
     }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if(changeActivity) {
+            mDeviceAdapter.clear();
+            deviceList.clear();
+            mDeviceAdapter.notifyDataSetChanged();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //release wakelock to save power
+        wl.release();
+    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -258,6 +306,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if(queryDocumentSnapshots != null) {
                     deviceList.clear();
+                    mDeviceAdapter.clear();
                     for(QueryDocumentSnapshot snapshot : queryDocumentSnapshots) {
                         Device newDevice = snapshot.toObject(Device.class);
                         //check if the current user own the device or not
@@ -271,23 +320,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        //release wakelock to save power
-        wl.release();
     }
 
     public void storeNewDevice() {
@@ -312,49 +344,49 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void addDeviceToUser(final String deviceName, String userEmail, String userPassword) {
-        //user email and password to signin
-        mFirebaseAuth.signInWithEmailAndPassword(userEmail,userPassword).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+        mFirestore.collection(userCollection)
+                .whereEqualTo("email", userEmail)
+                .whereEqualTo("password", SHA512(userPassword, "salt"))
+                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
             @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-                if(!task.isSuccessful()) {
-                    Toast.makeText(MainActivity.this, "Wrong user email or password", Toast.LENGTH_SHORT).show();
-                } else {
-                    //get the user ID
-                    final String checkUserID = mFirebaseAuth.getCurrentUser().getUid();
-                    //sign out
-                    mFirebaseAuth.signOut();
-                    //check if the device is already registered to user or not
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if(task.isSuccessful()){
+                    String documentID = null;
+                    for(DocumentSnapshot documentSnapshot: task.getResult().getDocuments()) {
+                        documentID = documentSnapshot.getId();
+                    }
+                    final String checkUserID = documentID;
                     mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection)
-                            .whereEqualTo("macAddress", macAddress).get()
-                            .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                                @Override
-                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                    //if not add new device
-                                    if(task.getResult().isEmpty()) {
-                                        Device device = new Device(deviceName, macAddress, true);
-                                        mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection).add(device);
-                                        Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
-                                    } else {
-                                        //check if the isOwned property is true or not
-                                        //if true, notify user they already has this device
-                                        //else, change to true
-                                        for (DocumentSnapshot snapshot : task.getResult()) {
-                                            Device device = snapshot.toObject(Device.class);
-                                            if(device.isOwned()) {
-                                                Toast.makeText(MainActivity.this, "You already had this device", Toast.LENGTH_SHORT).show();
-                                            } else {
-                                                device.setOwned(true);
-                                                device.setName(deviceName);
-                                                mFirestore.collection(userCollection).document(checkUserID)
-                                                        .collection(deviceCollection).document(snapshot.getId()).set(device);
-                                                Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
-                                            }
+                        .whereEqualTo("macAddress", macAddress).get()
+                        .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                            @Override
+                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                //if not add new device
+                                if(task.getResult().isEmpty()) {
+                                    Device device = new Device(deviceName, macAddress, true);
+                                    mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection).add(device);
+                                    Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
+                                } else {
+                                    //check if the isOwned property is true or not
+                                    //if true, notify user they already has this device
+                                    //else, change to true
+                                    for (DocumentSnapshot snapshot : task.getResult()) {
+                                        Device device = snapshot.toObject(Device.class);
+                                        if(device.isOwned()) {
+                                            Toast.makeText(MainActivity.this, "You already had this device", Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            device.setOwned(true);
+                                            device.setName(deviceName);
+                                            mFirestore.collection(userCollection).document(checkUserID)
+                                                    .collection(deviceCollection).document(snapshot.getId()).set(device);
+                                            Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
                                         }
                                     }
                                 }
-                            });
-
+                            }
+                        });
                 }
+
             }
         });
     }
@@ -439,6 +471,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 moveToSensor();
+                changeActivity = true;
             }
         });
         builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {

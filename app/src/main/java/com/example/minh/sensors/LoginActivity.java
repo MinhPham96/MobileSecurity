@@ -14,6 +14,7 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -69,11 +70,7 @@ public class LoginActivity extends AppCompatActivity {
                         Toast.makeText(LoginActivity.this, "Failed log in", Toast.LENGTH_SHORT).show();
                     } else {
                         //if log in, move back to main activity
-                        Toast.makeText(LoginActivity.this, "Successfully log in", Toast.LENGTH_SHORT).show();
-//                        Intent intent = new Intent(LoginActivity.this, MainActivity.class);// New activity
-//                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-//                        startActivity(intent);
-                        finish();
+                        checkIfEmailVerified();
                     }
                 }
             });
@@ -82,6 +79,27 @@ public class LoginActivity extends AppCompatActivity {
     public void moveToRegisterActivity(View view) {
         Intent intent = new Intent(this, RegisterActivity.class);
         startActivity(intent);
+    }
+
+    private void checkIfEmailVerified()
+    {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user.isEmailVerified())
+        {
+            // user is verified, so you can finish this activity or send user to activity which you want.
+            finish();
+            Toast.makeText(LoginActivity.this, "Successfully logged in", Toast.LENGTH_SHORT).show();
+//            finish();
+        }
+        else
+        {
+            // email is not verified, so just prompt the message to the user and restart this activity.
+            // NOTE: don't forget to log out the user.
+            mFirebaseAuth.signOut();
+            Toast.makeText(LoginActivity.this, "Email is not verified", Toast.LENGTH_SHORT).show();
+            //restart this activity
+        }
     }
 
 }

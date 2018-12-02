@@ -103,17 +103,15 @@ public class RegisterActivity extends AppCompatActivity {
                         .setDisplayName(name).build();
                 firebaseUser.updateProfile(profileUpdates);
                 //create new user and store in firestore
-                User user = new User(name, email, password);
+                User user = new User(name, email, MainActivity.SHA512(password, "salt"));
                 DocumentReference userDocRef = mFirestore.collection(userCollection)
                         .document(firebaseUser.getUid());
                 userDocRef.set(user).addOnCompleteListener(new OnCompleteListener<Void>() {
                     @Override
                     public void onComplete(@NonNull Task<Void> task) {
-                        //when done move back to main activity
+                        //when done send verification email
                         Log.i(TAG, "Store User");
-                        Intent intent = new Intent(RegisterActivity.this, MainActivity.class);
-                        startActivity(intent);
-                        finish();
+                        sendVerificationEmail();
                     }
                 });
             }
@@ -125,5 +123,37 @@ public class RegisterActivity extends AppCompatActivity {
                 (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnectedOrConnecting();
+    }
+
+    private void sendVerificationEmail()
+    {
+        FirebaseUser user = mFirebaseAuth.getCurrentUser();
+
+        user.sendEmailVerification()
+            .addOnCompleteListener(new OnCompleteListener<Void>() {
+                @Override
+                public void onComplete(@NonNull Task<Void> task) {
+                    if (task.isSuccessful()) {
+                        // email sent
+                        // after email is sent just logout the user and finish this activity
+                        mFirebaseAuth.signOut();
+                        Toast.makeText(RegisterActivity.this,"A verification is sent to your email, verify and login",Toast.LENGTH_LONG).show();
+//                        Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);// New activity
+//                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+//                        startActivity(intent);
+                        finish();
+                    }
+                    else
+                    {
+                        // email not sent, so display message and restart the activity or do whatever you wish to do
+                        //restart this activity
+                        overridePendingTransition(0, 0);
+                        finish();
+                        overridePendingTransition(0, 0);
+                        startActivity(getIntent());
+
+                    }
+                }
+            });
     }
 }

@@ -632,6 +632,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                                                         Log.i(TAG, "Send Alert");
                                                     }
                                                 });
+                                                Toast.makeText(SensorActivity.this, "Alert sent", Toast.LENGTH_SHORT).show();
                                             }
                                         });
 
@@ -648,7 +649,7 @@ public class SensorActivity extends AppCompatActivity implements SensorEventList
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-                    Toast.makeText(SensorActivity.this, "Saved "+file, Toast.LENGTH_SHORT).show();
+//                    Toast.makeText(SensorActivity.this, "Saved "+file, Toast.LENGTH_SHORT).show();
                     createCameraPreview();
                 }
             };

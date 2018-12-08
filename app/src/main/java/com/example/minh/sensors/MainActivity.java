@@ -1,14 +1,17 @@
 package com.example.minh.sensors;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -101,10 +104,16 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean changeActivity = false;
 
+    //camera permission
+    private static final int REQUEST_CAMERA_PERMISSION = 200;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        askCameraPermission();
 
         //notification
         createNotificationChannel();
@@ -465,7 +474,7 @@ public class MainActivity extends AppCompatActivity {
 
         //add the input to the layout
         layout.addView(typeSpinner);
-//        layout.setLayoutParams(new LinearLayout.LayoutParams(300, 300));
+        layout.setLayoutParams(new LinearLayout.LayoutParams(300, 300));
 
         builder.setView(layout);
 
@@ -485,11 +494,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-//        builder.show();
-        AlertDialog alertDialog = builder.create();
-        alertDialog.show();
-        alertDialog.getWindow().setLayout(700,500);
-
+        builder.show();
 
     }
 
@@ -584,12 +589,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    private void takeSnapshot(){
-
-    }
-
-    private void openCamera() {
+    private void askCameraPermission(){
+        if(ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
+        {
+            ActivityCompat.requestPermissions(this,new String[]{
+                    android.Manifest.permission.CAMERA,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            },REQUEST_CAMERA_PERMISSION);
+            return;
+        }
     }
 
 

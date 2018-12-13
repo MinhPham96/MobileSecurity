@@ -87,11 +87,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         this.mDataset = myDataset;
         this.mac_id_hashmap = hm;
         this.context = context;
-    }
 
-    @NonNull
-    @Override
-    public myViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         mFirestore = FirebaseFirestore.getInstance();
         mFirebaseAuth = FirebaseAuth.getInstance();
         user = mFirebaseAuth.getCurrentUser();
@@ -100,7 +96,11 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.myViewHold
         historyCollection = context.getResources().getString(R.string.fireStoreHistoryCollection);
         sharedDeviceId = context.getResources().getString(R.string.sharedPrefDeviceId);
         sharedPref = context.getSharedPreferences("com.example.app", Context.MODE_PRIVATE);
+    }
 
+    @NonNull
+    @Override
+    public myViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         // create a new view, get the list item layout
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
         View view = inflater.inflate(R.layout.device_item, parent, false);

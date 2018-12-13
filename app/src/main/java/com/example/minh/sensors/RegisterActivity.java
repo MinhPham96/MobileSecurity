@@ -70,22 +70,18 @@ public class RegisterActivity extends AppCompatActivity {
             Toast.makeText(this,"Please connect to Internet",Toast.LENGTH_LONG).show();
             return;
         }
-
         if(TextUtils.isEmpty(email)) {
             Toast.makeText(this,"Please enter email",Toast.LENGTH_LONG).show();
             return;
         }
-
         if(TextUtils.isEmpty(password)) {
             Toast.makeText(this,"Please enter password",Toast.LENGTH_LONG).show();
             return;
         }
-
         if(password.length() < 6) {
             Toast.makeText(this,"Password too short, please enter minimum of 6 characters",Toast.LENGTH_LONG).show();
             return;
         }
-
         if(TextUtils.isEmpty(name)) {
             Toast.makeText(this,"Please enter name",Toast.LENGTH_LONG).show();
             return;
@@ -102,6 +98,7 @@ public class RegisterActivity extends AppCompatActivity {
                 UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
                         .setDisplayName(name).build();
                 firebaseUser.updateProfile(profileUpdates);
+                //sign out
                 //create new user and store in firestore
                 User user = new User(name, email, MainActivity.SHA512(password, "salt"));
                 DocumentReference userDocRef = mFirestore.collection(userCollection)
@@ -128,7 +125,6 @@ public class RegisterActivity extends AppCompatActivity {
     private void sendVerificationEmail()
     {
         FirebaseUser user = mFirebaseAuth.getCurrentUser();
-
         user.sendEmailVerification()
             .addOnCompleteListener(new OnCompleteListener<Void>() {
                 @Override
@@ -137,21 +133,19 @@ public class RegisterActivity extends AppCompatActivity {
                         // email sent
                         // after email is sent just logout the user and finish this activity
                         mFirebaseAuth.signOut();
-                        Toast.makeText(RegisterActivity.this,"A verification is sent to your email, verify and login",Toast.LENGTH_LONG).show();
-//                        Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);// New activity
-//                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-//                        startActivity(intent);
+                        Toast.makeText(RegisterActivity.this,"A verification is sent to your email, " +
+                                "verify and login",Toast.LENGTH_LONG).show();
                         finish();
                     }
                     else
                     {
                         // email not sent, so display message and restart the activity or do whatever you wish to do
                         //restart this activity
+                        mFirebaseAuth.signOut();
                         overridePendingTransition(0, 0);
                         finish();
                         overridePendingTransition(0, 0);
                         startActivity(getIntent());
-
                     }
                 }
             });

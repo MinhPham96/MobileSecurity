@@ -377,7 +377,8 @@ public class MainActivity extends AppCompatActivity {
                                 //if not add new device
                                 if(task.getResult().isEmpty()) {
                                     Device device = new Device(deviceName, macAddress, true);
-                                    mFirestore.collection(userCollection).document(checkUserID).collection(deviceCollection).add(device);
+                                    mFirestore.collection(userCollection).document(checkUserID)
+                                            .collection(deviceCollection).add(device);
                                     Toast.makeText(MainActivity.this, "add Device", Toast.LENGTH_SHORT).show();
                                 } else {
                                     //check if the isOwned property is true or not
@@ -491,6 +492,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 dialog.cancel();
+                layout.removeAllViews();
             }
         });
 

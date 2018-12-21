@@ -99,6 +99,7 @@ public class MainActivity extends AppCompatActivity {
     private int deviceType = 0;
     private String deviceUseCase;
     private List<String> spinnerArray = new ArrayList<>();
+    private ArrayAdapter<String> spinnerAdapter;
 
     private static final String CHANNEL_ID  = "MS1211";
 
@@ -160,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
                     usernameTextView.setText(user.getDisplayName() + "'s Device List");
                     setupUserDeviceListener();
                     initCheck = true;
+                    getSpinnerUseCase();
                 }
             }
         };
@@ -205,25 +207,13 @@ public class MainActivity extends AppCompatActivity {
         // Create an ArrayAdapter using the string array and a default spinner layout
 //        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
 //                R.array.device_type, android.R.layout.simple_spinner_item);
-        final ArrayAdapter<String> adapter = new ArrayAdapter<String>
-                (this, android.R.layout.simple_spinner_dropdown_item, spinnerArray);
-
-        mFirestore.collection(usecaseCollection).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-            @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                if(task.isSuccessful()){
-                    for(DocumentSnapshot documentSnapshot: task.getResult().getDocuments()){
-                        spinnerArray.add(documentSnapshot.getId());
-                    }
-                    adapter.notifyDataSetChanged();
-                }
-            }
-        });
 
         // Specify the layout to use when the list of choices appears
 //        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         // Apply the adapter to the spinner
-        typeSpinner.setAdapter(adapter);
+        spinnerAdapter = new ArrayAdapter<String>
+                (this, android.R.layout.simple_spinner_dropdown_item, spinnerArray);
+        typeSpinner.setAdapter(spinnerAdapter);
         typeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long l) {
@@ -330,6 +320,20 @@ public class MainActivity extends AppCompatActivity {
                     }
 //                    deviceList.addAll(queryDocumentSnapshots.toObjects(Device.class));
                     mDeviceAdapter.notifyDataSetChanged();
+                }
+            }
+        });
+    }
+
+    public void getSpinnerUseCase(){
+        mFirestore.collection(usecaseCollection).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if(task.isSuccessful()){
+                    for(DocumentSnapshot documentSnapshot: task.getResult().getDocuments()){
+                        spinnerArray.add(documentSnapshot.getId());
+                    }
+                    spinnerAdapter.notifyDataSetChanged();
                 }
             }
         });

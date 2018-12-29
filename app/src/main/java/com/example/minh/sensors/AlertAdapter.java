@@ -18,6 +18,7 @@ import java.util.List;
 
 public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder> {
     private List<Alert> mDataset = new ArrayList<>();
+    private List<Alert> backupDataset = new ArrayList<>();
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
     private Context context;
 
@@ -38,6 +39,7 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
     public AlertAdapter(List<Alert> myDataset, Context context) {
         this.mDataset = myDataset;
         this.context = context;
+        this.backupDataset = myDataset;
     }
 
     @NonNull
@@ -74,6 +76,12 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.myViewHolder
                 }
             }
         });
+    }
+
+    public void setFilter(List<Alert> newList){
+        mDataset=new ArrayList<>();
+        mDataset.addAll(newList);
+        notifyDataSetChanged();
     }
 
     //get the size of the list
